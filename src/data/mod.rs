@@ -1,42 +1,22 @@
-pub struct Collection {
-    pub name: String,
+use std::fmt::Debug;
+use std::slice::Iter;
+use std::sync::Arc;
+
+use crate::lumberjack::{LogLine, Lumberjack};
+use crate::Result;
+
+pub mod repl;
+
+pub trait LogObject: Debug + Send + Sync {
+    fn name(&self) -> String;
+    fn info(&self) -> String;
+    fn lines(&self) -> Iter<'_, Arc<LogLine>>;
 }
 
-pub struct Scope {
-    pub name: String,
-    pub collections: Vec<Collection>,
+struct Test {
+    item: Box<dyn LogObject>,
 }
 
-#[derive(Debug, Copy, Clone)]
-pub enum ReplMode {
-    Disabled,
-    Passive,
-    OneShot,
-    Continuous,
-}
-
-impl ReplMode {
-    pub fn from_str(s: &str) -> Option<ReplMode> {
-        match s {
-            "disabled" => Some(ReplMode::Disabled),
-            "passive" => Some(ReplMode::Passive),
-            "one-shot" => Some(ReplMode::OneShot),
-            "continuous" => Some(ReplMode::Continuous),
-            _ => None
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ReplCollection {
-    pub name: String,
-    pub index: usize,
-    pub push: ReplMode,
-    pub pull: ReplMode,
-}
-
-#[derive(Debug, Clone)]
-pub struct ReplConfig {
-    pub collections: Vec<ReplCollection>,
-    pub destination: String,
+pub trait LogObjectGroup: Debug + Sized {
+    async fn from_lumberjack(lumberjack: &Lumberjack) -> Result<Vec<Arc<Self>>>;
 }
