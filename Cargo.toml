@@ -1,0 +1,23 @@
+[package]
+name = "cbl-lumberjack"
+# The version aligns with the CBL version it is intended to parse logs for
+version = "3.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+thiserror = "1.0.58"
+clap = "4.5.4"
+clap_derive = "4.5.4"
+grep = "0.3.1"
+chrono = "0.4.38"
+regex = "1.10.4"
+iced = { version = "0.12.1", features = ["highlighter", "tokio", "debug", "advanced"] }
+tokio = { version = "1", features = ["fs"] }
+tokio-stream = { version = "0.1.15", features = ["fs"] }
+rfd = "0.14.1"
+env_logger = "0.11.3"
+lazy_static = "1.4.0"
+log = "0.4.21"
+enum-iterator = "2.1.0"
