@@ -13,6 +13,7 @@ chrono.workspace = true
 regex.workspace = true
 sqlx.workspace = true
 enum-iterator.workspace = true
+thiserror.workspace = true
 
 [lints]
 workspace = true

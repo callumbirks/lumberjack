@@ -1,16 +1,17 @@
+use std::path::PathBuf;
+
 use chrono::NaiveDateTime;
 use sqlx::database::{HasArguments, HasValueRef};
 use sqlx::encode::IsNull;
 use sqlx::error::BoxDynError;
-use sqlx::postgres::{PgRow, PgTypeInfo};
-use sqlx::{Error, FromRow, Postgres, Row};
-use std::path::PathBuf;
+use sqlx::Sqlite;
 
 #[derive(sqlx::FromRow)]
 pub struct Line {
+    line_num: u64,
+    message: String,
     #[sqlx(flatten)]
     file: File,
-    line_num: u64,
     #[sqlx(flatten)]
     event: Event,
 }
@@ -33,9 +34,30 @@ pub enum Level {
 }
 
 #[derive(sqlx::FromRow)]
+pub struct Object {
+    id: i64,
+    ty: ObjectType,
+    #[sqlx(flatten)]
+    lines: Vec<Line>,
+    #[sqlx(flatten)]
+    events: Vec<Event>,
+}
+
+#[derive(sqlx::Type)]
+#[repr(i32)]
+pub enum ObjectType {
+    DB,
+    Repl,
+    Pusher,
+    Puller,
+}
+
+#[derive(sqlx::FromRow)]
 pub struct Event {
     event_type: EventType,
     timestamp: NaiveDateTime,
+    #[sqlx(flatten)]
+    objects: Vec<Object>,
 }
 
 #[repr(i32)]
@@ -43,6 +65,8 @@ pub enum EventType {
     Common(CommonEvent),
     DB(DBEvent),
 }
+
+crate::impl_sqlx_type!(<Sqlite> EventType as i64);
 
 #[derive(sqlx::Type)]
 #[repr(i32)]
@@ -66,23 +90,4 @@ pub enum DBEvent {
 enum PgEventType {
     Common,
     DB,
-}
-
-impl sqlx::Type<Postgres> for EventType {
-    fn type_info() -> <Postgres as sqlx::Database>::TypeInfo {
-        <i64 as sqlx::Type<Postgres>>::type_info()
-    }
-}
-
-impl sqlx::Encode<'_, Postgres> for EventType {
-    fn encode_by_ref(&self, buf: &mut <Postgres as HasArguments<'_>>::ArgumentBuffer) -> IsNull {
-        let int: i64 = unsafe { std::mem::transmute(self) };
-        <i64 as sqlx::Encode<Postgres>>::encode_by_ref(&int, buf)
-    }
-}
-
-impl sqlx::Decode<'_, Postgres> for EventType {
-    fn decode(value: <Postgres as HasValueRef<'_>>::ValueRef) -> Result<Self, BoxDynError> {
-        <i64 as sqlx::Decode<Postgres>>::decode(value).map(|i| unsafe { std::mem::transmute(&i) })
-    }
 }

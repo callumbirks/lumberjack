@@ -1,16 +1,27 @@
-mod data;
+use sqlx::sqlite::SqliteConnectOptions;
+use sqlx::{Connection, SqliteConnection, SqlitePool};
 
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
+mod data;
+mod error;
+mod util;
+
+pub use error::Error;
+pub use error::Result;
+
+// pub async fn fetch<T>(&self, pred: Predicate) -> Result<T> {
+//      query_as!(T, &self.conn, translate!(pred))
+// }
+
+pub async fn open() -> Result<()> {
+    let options = SqliteConnectOptions::new()
+        .filename("lumberjack_test")
+        .create_if_missing(true);
+    let conn = SqliteConnection::connect_with(&options).await?;
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+    fn it_works() {}
 }
