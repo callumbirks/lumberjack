@@ -1,12 +1,32 @@
 [package]
 name = "cbl-lumberjack"
-# The version aligns with the CBL version it is intended to parse logs for
-version = "3.1.0"
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "CBL log parser"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
+lumberjack_parse.workspace = true
+iced.workspace = true
+
+[workspace]
+members = [
+    "parse",
+]
+
+[workspace.package]
+version = "0.1.0"
+authors = ["Callum Birks <callumbirks@protonmail.com>"]
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/couchbaselabs/cbl-lumberjack"
+
+[workspace.dependencies]
+lumberjack = { version = "0.1.0", path = "." }
+lumberjack_parse = { version = "0.1.0", path = "parse" }
+
 thiserror = "1.0.58"
 clap = "4.5.4"
 clap_derive = "4.5.4"
@@ -21,3 +41,7 @@ env_logger = "0.11.3"
 lazy_static = "1.4.0"
 log = "0.4.21"
 enum-iterator = "2.1.0"
+sqlx = { version = "0.7.4", features = ["runtime-tokio", "postgres"] }
+
+[workspace.lints.clippy]
+pedantic = "warn"

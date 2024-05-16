@@ -1,0 +1,18 @@
+[package]
+name = "lumberjack_parse"
+description = "The parser for Lumberjack"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+grep.workspace = true
+chrono.workspace = true
+regex.workspace = true
+sqlx.workspace = true
+enum-iterator.workspace = true
+
+[lints]
+workspace = true
