@@ -25,7 +25,7 @@ impl std::default::Default for Appearance {
                 color: [0.7, 0.7, 0.7].into(),
                 radius: Default::default(),
             },
-            header_text_color: Color::BLACK,
+            header_text_color: Color::WHITE,
             header_background: Background::Color([0.6, 0.6, 0.6].into()),
             header_border: Border::with_radius(1),
             hovered_text_color: Color::WHITE,

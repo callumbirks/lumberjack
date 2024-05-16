@@ -1,16 +1,20 @@
-use crate::widget::log_table::Content;
-use crate::widget::style::log_table::StyleSheet;
+use std::hash::{DefaultHasher, Hash, Hasher};
+use std::sync::{Arc, RwLock};
+
+use iced::advanced::layout::flex::Axis;
 use iced::advanced::layout::{Limits, Node};
 use iced::advanced::renderer::Style;
 use iced::advanced::widget::tree;
 use iced::advanced::widget::Tree;
-use iced::advanced::{renderer, text, Clipboard, Layout, Shell, Widget};
-use iced::alignment::{Horizontal, Vertical};
+use iced::advanced::{layout, renderer, text, Clipboard, Layout, Shell, Widget};
+use iced::keyboard::key::Named;
 use iced::{
-    event, mouse, touch, Border, Color, Element, Event, Length, Pixels, Point, Rectangle, Shadow,
-    Size,
+    event, keyboard, mouse, touch, Alignment, Background, Border, Color, Element, Event, Length,
+    Padding, Rectangle, Shadow, Size,
 };
-use std::hash::{DefaultHasher, Hash, Hasher};
+
+use crate::widget::log_table::{Content, Mutables};
+use crate::widget::style::log_table::StyleSheet;
 
 pub struct List<'a, T, Message, Theme, Renderer>
 where
@@ -19,18 +23,18 @@ where
     Theme: StyleSheet,
 {
     pub content: &'a Content<T>,
-    pub font: Renderer::Font,
+    pub columns: Box<[Element<'a, Message, Theme, Renderer>]>,
+    pub mutables: Arc<RwLock<Mutables<T, Message, Renderer>>>,
     pub style: Theme::Style,
-    pub on_click: Box<dyn Fn(usize, T) -> Message + 'static>,
     pub padding: f32,
     pub text_size: f32,
-    pub selected: Option<usize>,
+    pub selected: Option<u64>,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct ListState {
-    pub hovered_option: Option<usize>,
-    pub last_selected_index: Option<(usize, u64)>,
+    pub hovered_option: Option<u64>,
+    pub last_selected_index: Option<(u64, u64)>,
 }
 
 impl<'a, T, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
@@ -44,15 +48,37 @@ where
         Size::new(Length::Fill, Length::Shrink)
     }
 
-    fn layout(&self, _tree: &mut Tree, _renderer: &Renderer, limits: &Limits) -> Node {
+    fn layout(&self, tree: &mut Tree, renderer: &Renderer, limits: &Limits) -> Node {
         let limits = limits.height(Length::Fill).width(Length::Fill);
 
-        let intrinsic = Size::new(
-            limits.max().width,
-            (self.text_size + self.padding * 2.0) * self.content.rows.len() as f32,
-        );
+        //let intrinsic = Size::new(
+        //    limits.max().width,
+        //    (self.text_size + self.padding * 2.0) * (self.content.rows.len() + 1) as f32,
+        //);
 
-        Node::new(intrinsic)
+        //let children = self
+        //    .columns
+        //    .iter()
+        //    .zip(&mut tree.children)
+        //    .map(|(c, tree)| c.layout(tree, renderer, &limits))
+        //    .collect();
+
+        //Node::with_children(intrinsic, children)
+
+        let height = (self.text_size + self.padding * 2.0) * (self.content.rows.len() + 1) as f32;
+
+        layout::flex::resolve(
+            Axis::Horizontal,
+            renderer,
+            &limits,
+            Length::Fill,
+            Length::Fixed(height),
+            Padding::ZERO,
+            0.0,
+            Alignment::Start,
+            &self.columns,
+            &mut tree.children,
+        )
     }
 
     fn draw(
@@ -60,16 +86,17 @@ where
         tree: &Tree,
         renderer: &mut Renderer,
         theme: &Theme,
-        _style: &Style,
+        style: &Style,
         layout: Layout<'_>,
-        _cursor: mouse::Cursor,
+        cursor: mouse::Cursor,
         viewport: &Rectangle,
     ) {
         let bounds = layout.bounds();
+
         let item_height = self.text_size + (self.padding * 2.0);
         let offset = viewport.y - bounds.y;
-        let start = (offset / item_height) as usize;
-        let end = ((offset + viewport.height) / item_height).ceil() as usize;
+        let start = (offset / item_height) as u64;
+        let end = ((offset + viewport.height) / item_height).ceil() as u64;
         let list_state = tree.state.downcast_ref::<ListState>();
 
         let appearance = theme.style(&self.style);
@@ -89,36 +116,11 @@ where
             appearance.header_background,
         );
 
-        // Column header titles
-        for (i, column) in self.content.columns.iter().enumerate() {
-            let header_bounds = Rectangle {
-                x: header_row_bounds.x + 20.0 * i as f32,
-                width: 20.0,
-                ..header_row_bounds
-            };
-
-            renderer.fill_text(
-                text::Text {
-                    content: column.title,
-                    bounds: header_bounds.size(),
-                    size: Pixels(self.text_size),
-                    line_height: Default::default(),
-                    font: self.font,
-                    horizontal_alignment: Horizontal::Left,
-                    vertical_alignment: Vertical::Top,
-                    shaping: text::Shaping::Basic,
-                },
-                Point::new(header_bounds.x, header_bounds.center_y()),
-                appearance.header_text_color,
-                header_bounds,
-            )
-        }
-
         // Take one off the rows we will draw to account for the header
-        let end = end - 1;
+        let end = end.saturating_sub(1);
 
         // Visible rows
-        for i in start..end.min(self.content.rows.len()) {
+        for i in start..end.min(self.content.rows.len() as u64) {
             let is_selected = list_state.last_selected_index.is_some_and(|u| u.0 == i);
             let is_hovered = list_state.hovered_option == Some(i);
 
@@ -147,37 +149,20 @@ where
                     },
                 );
             }
+        }
 
-            let text_color = if is_selected {
-                appearance.selected_text_color
-            } else if is_hovered {
-                appearance.hovered_text_color
-            } else {
-                appearance.text_color
-            };
-
-            for (i, cell) in self.content.rows[i].cells.iter().enumerate() {
-                let cell_bounds = Rectangle {
-                    x: bounds.x + 20.0 * i as f32,
-                    ..bounds
-                };
-
-                renderer.fill_text(
-                    text::Text {
-                        content: cell,
-                        bounds: Size::new(f32::INFINITY, bounds.height),
-                        size: Pixels(self.text_size),
-                        line_height: Default::default(),
-                        font: self.font,
-                        horizontal_alignment: Horizontal::Left,
-                        vertical_alignment: Vertical::Top,
-                        shaping: text::Shaping::Basic,
-                    },
-                    Point::new(bounds.x, bounds.center_y()),
-                    text_color,
-                    cell_bounds,
-                );
-            }
+        for (column, layout) in self.columns.iter().zip(layout.children()) {
+            renderer.fill_quad(
+                renderer::Quad {
+                    bounds: layout.bounds(),
+                    border: appearance.border,
+                    shadow: Shadow::default(),
+                },
+                Background::Color(Color::TRANSPARENT),
+            );
+            column
+                .as_widget()
+                .draw(tree, renderer, theme, style, layout, cursor, viewport);
         }
     }
 
@@ -185,15 +170,29 @@ where
         tree::Tag::of::<ListState>()
     }
 
+    fn children(&self) -> Vec<Tree> {
+        self.columns
+            .iter()
+            .map(|c| Tree::new(c.as_widget()))
+            .collect()
+    }
+
     fn state(&self) -> tree::State {
         tree::State::new(ListState::default())
     }
 
     fn diff(&self, tree: &mut Tree) {
+        let children = self
+            .columns
+            .iter()
+            .map(|c| c.as_widget())
+            .collect::<Box<[_]>>();
+        tree.diff_children(&children);
+
         let list_state = tree.state.downcast_mut::<ListState>();
 
         if let Some(idx) = self.selected {
-            if let Some(row) = self.content.rows.get(idx) {
+            if let Some(row) = self.content.rows.get(idx as usize) {
                 let mut hasher = DefaultHasher::new();
                 row.hash(&mut hasher);
 
@@ -202,7 +201,7 @@ where
                 list_state.last_selected_index = None;
             }
         } else if let Some((idx, hash)) = list_state.last_selected_index {
-            if let Some(row) = self.content.rows.get(idx) {
+            if let Some(row) = self.content.rows.get(idx as usize) {
                 let mut hasher = DefaultHasher::new();
                 row.hash(&mut hasher);
 
@@ -231,41 +230,88 @@ where
         let list_state = tree.state.downcast_mut::<ListState>();
         let cursor = cursor.position().unwrap_or_default();
 
-        if bounds.contains(cursor) {
-            match event {
-                Event::Mouse(mouse::Event::CursorMoved { .. }) => {
-                    list_state.hovered_option = Some(
-                        ((cursor.y - bounds.y) / (self.text_size + (self.padding * 2.0))) as usize,
-                    );
-                }
-                Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
-                | Event::Touch(touch::Event::FingerPressed { .. }) => {
-                    list_state.hovered_option = Some(
-                        ((cursor.y - bounds.y) / (self.text_size + (self.padding * 2.0))) as usize,
-                    );
+        let Some(mutables) = self.mutables.read().ok() else {
+            return event::Status::Ignored;
+        };
 
-                    if let Some(index) = list_state.hovered_option {
-                        if let Some(row) = self.content.rows.get(index) {
-                            let mut hasher = DefaultHasher::new();
-                            row.hash(&mut hasher);
-                            list_state.last_selected_index = Some((index, hasher.finish()));
+        let Some(on_click) = &mutables.on_click else {
+            return event::Status::Ignored;
+        };
+
+        match event {
+            Event::Mouse(mouse::Event::CursorMoved { .. }) if bounds.contains(cursor) => {
+                list_state.hovered_option = Some(
+                    ((cursor.y - bounds.y - (self.text_size + (self.padding * 2.0)))
+                        / (self.text_size + (self.padding * 2.0))) as u64,
+                );
+            }
+            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
+            | Event::Touch(touch::Event::FingerPressed { .. })
+                if bounds.contains(cursor) =>
+            {
+                list_state.hovered_option = Some(
+                    ((cursor.y - bounds.y - (self.text_size + (self.padding * 2.0)))
+                        / (self.text_size + (self.padding * 2.0))) as u64,
+                );
+
+                if let Some(index) = list_state.hovered_option {
+                    if let Some(row) = self.content.rows.get(index as usize) {
+                        let mut hasher = DefaultHasher::new();
+                        row.hash(&mut hasher);
+                        list_state.last_selected_index = Some((index, hasher.finish()));
+                    }
+                }
+
+                status = list_state
+                    .last_selected_index
+                    .map_or(event::Status::Ignored, |last| {
+                        if let Some(row) = self.content.rows.get(last.0 as usize) {
+                            _shell.publish(on_click(last.0, row.item.clone()));
+                            event::Status::Captured
+                        } else {
+                            event::Status::Ignored
+                        }
+                    });
+            }
+            Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, .. }) => {
+                status = match key {
+                    keyboard::Key::Named(Named::ArrowUp) => {
+                        if let Some((last_selected, _)) = list_state.last_selected_index {
+                            let selected = last_selected
+                                .wrapping_sub(1)
+                                .min(self.content.rows.len() as u64);
+                            let hash = self.hash_row_at(selected).unwrap_or(0);
+                            list_state.last_selected_index = Some((selected, hash));
+                            if let Some(row) = self.row(selected) {
+                                _shell.publish(on_click(selected, row.item.clone()))
+                            }
+                            event::Status::Captured
+                        } else {
+                            event::Status::Ignored
                         }
                     }
-
-                    status =
-                        list_state
-                            .last_selected_index
-                            .map_or(event::Status::Ignored, |last| {
-                                if let Some(row) = self.content.rows.get(last.0) {
-                                    _shell.publish((self.on_click)(last.0, row.item.clone()));
-                                    event::Status::Captured
-                                } else {
-                                    event::Status::Ignored
-                                }
-                            });
+                    keyboard::Key::Named(Named::ArrowDown) => {
+                        if let Some((last_selected, _)) = list_state.last_selected_index {
+                            let selected = last_selected.saturating_add(1);
+                            let selected = if selected >= self.content.rows.len() as u64 {
+                                0
+                            } else {
+                                selected
+                            };
+                            let hash = self.hash_row_at(selected).unwrap_or(0);
+                            list_state.last_selected_index = Some((selected, hash));
+                            if let Some(row) = self.row(selected) {
+                                _shell.publish(on_click(selected, row.item.clone()))
+                            }
+                            event::Status::Captured
+                        } else {
+                            event::Status::Ignored
+                        }
+                    }
+                    _ => event::Status::Ignored,
                 }
-                _ => {}
             }
+            _ => {}
         }
 
         status
@@ -286,6 +332,31 @@ where
         } else {
             mouse::Interaction::default()
         }
+    }
+}
+
+impl<'a, T, Message, Theme, Renderer> List<'a, T, Message, Theme, Renderer>
+where
+    T: Clone + Hash,
+    Renderer: renderer::Renderer + text::Renderer<Font = iced::Font>,
+    Theme: StyleSheet,
+{
+    pub fn item_height(&self) -> f32 {
+        self.text_size + (self.padding * 2.0)
+    }
+
+    fn hash_row_at(&self, index: u64) -> Option<u64> {
+        if let Some(row) = self.content.rows.get(index as usize) {
+            let mut hasher = DefaultHasher::new();
+            row.hash(&mut hasher);
+            Some(hasher.finish())
+        } else {
+            None
+        }
+    }
+
+    pub fn row(&self, index: u64) -> Option<&super::Row<T>> {
+        self.content.rows.get(index as usize)
     }
 }
 
