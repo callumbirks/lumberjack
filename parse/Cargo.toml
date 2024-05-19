@@ -1,6 +1,5 @@
 [package]
 name = "lumberjack_parse"
-description = "The parser for Lumberjack"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -8,12 +7,22 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-grep.workspace = true
 chrono.workspace = true
-regex.workspace = true
-sqlx.workspace = true
-enum-iterator.workspace = true
+diesel = { workspace = true, features = ["sqlite", "chrono"] }
+diesel_migrations.workspace = true
 thiserror.workspace = true
+tokio = { workspace = true, features = ["macros"] }
+tokio-stream = { workspace = true, features = ["io-util"] }
+tokio-util = { workspace = true, features = ["io"] }
+futures.workspace = true
+env_logger.workspace = true
+log.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_yaml.workspace = true
+lazy_static.workspace = true
+rangemap.workspace = true
+semver.workspace = true
 
 [lints]
 workspace = true

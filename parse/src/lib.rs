@@ -1,27 +1,33 @@
-use sqlx::sqlite::SqliteConnectOptions;
-use sqlx::{Connection, SqliteConnection, SqlitePool};
-
 mod data;
 mod error;
-mod util;
+mod parser;
+pub mod util;
 
-pub use error::Error;
-pub use error::Result;
+use crate::data::Database;
+use crate::parser::{DirParser, FileParser, Parser};
+pub use error::{Error, Result};
+use std::hash::{DefaultHasher, Hash, Hasher};
+use std::path::Path;
 
-// pub async fn fetch<T>(&self, pred: Predicate) -> Result<T> {
-//      query_as!(T, &self.conn, translate!(pred))
-// }
+/// Parse logs from the given path (either a file or a directory) and return the populated database.
+pub async fn parse(path: impl AsRef<Path>) -> Result<Database> {
+    let path = path.as_ref();
 
-pub async fn open() -> Result<()> {
-    let options = SqliteConnectOptions::new()
-        .filename("lumberjack_test")
-        .create_if_missing(true);
-    let conn = SqliteConnection::connect_with(&options).await?;
-    Ok(())
-}
+    let hash = {
+        let mut hasher = DefaultHasher::new();
+        path.hash(&mut hasher);
+        hasher.finish()
+    };
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {}
+    // The database path is the hash of the log path in hexadecimal (with 'sqlite' extension)
+    let db_path = format!("{hash:x}.sqlite");
+    let database = Database::open(db_path, true).await?;
+
+    if path.is_dir() {
+        DirParser::parse(path, &database).await?;
+    } else {
+        FileParser::parse(path, &database).await?;
+    }
+
+    Ok(database)
 }

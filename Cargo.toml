@@ -40,21 +40,28 @@ repository = "https://github.com/couchbaselabs/cbl-lumberjack"
 lumberjack = { version = "0.1.0", path = "." }
 lumberjack_parse = { version = "0.1.0", path = "parse" }
 
-thiserror = "1.0.58"
+thiserror = "1.0"
 clap = "4.5.4"
 clap_derive = "4.5.4"
-grep = "0.3.1"
-chrono = "0.4.38"
-regex = "1.10.4"
+grep = "0.3"
+chrono = "0.4"
+regex = "1.10"
 iced = { version = "0.12.1", features = ["highlighter", "tokio", "debug", "advanced"] }
 tokio = { version = "1", features = ["fs"] }
-tokio-stream = { version = "0.1.15", features = ["fs"] }
-rfd = "0.14.1"
-env_logger = "0.11.3"
-lazy_static = "1.4.0"
-log = "0.4.21"
-enum-iterator = "2.1.0"
-sqlx = { version = "0.7.4", features = ["runtime-tokio", "sqlite"] }
+tokio-stream = { version = "0.1", features = ["fs"] }
+tokio-util = "0.7.11"
+rfd = "0.14"
+env_logger = "0.11"
+lazy_static = "1.4"
+log = "0.4"
+enum-iterator = "2.1"
+futures = "0.3"
+diesel = "2.1"
+diesel_migrations = "2.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+rangemap = "1.5"
+semver = "1.0"
 
 [workspace.lints.clippy]
 pedantic = "warn"
