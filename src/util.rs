@@ -1,18 +1,17 @@
 use crate::error::LumberjackError;
-use crate::parse::LogParser;
-use enum_iterator::Sequence;
-use std::fmt::{Display, Formatter};
+use lumberjack_parse::data::Database;
+use std::fmt::Display;
 use std::path::Path;
 use std::sync::Arc;
 
-pub async fn open_folder() -> crate::Result<LogParser> {
+pub async fn open_folder() -> crate::Result<Database> {
     let picked = rfd::AsyncFileDialog::new()
         .set_title("Open a cbllog directory...")
         .pick_folder()
         .await
         .ok_or(LumberjackError::DirectoryInvalid)?;
 
-    LogParser::with_dir(picked.path()).await
+    lumberjack_parse::parse(picked.path())
 }
 
 pub async fn read_file(path: &Path) -> crate::Result<Box<str>> {

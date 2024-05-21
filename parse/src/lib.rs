@@ -1,6 +1,7 @@
-mod data;
+pub mod data;
 mod error;
 mod parser;
+mod schema;
 pub mod util;
 
 use crate::data::Database;
@@ -23,11 +24,15 @@ pub async fn parse(path: impl AsRef<Path>) -> Result<Database> {
     let db_path = format!("{hash:x}.sqlite");
     let database = Database::open(db_path, true).await?;
 
-    if path.is_dir() {
-        DirParser::parse(path, &database).await?;
+    let (files, lines, objects) = if path.is_dir() {
+        DirParser::parse(path).await?
     } else {
-        FileParser::parse(path, &database).await?;
-    }
+        FileParser::parse(path).await?
+    };
+
+    database.insert_files(&files).await?;
+    database.insert_objects(&objects).await?;
+    database.insert_lines(&lines).await?;
 
     Ok(database)
 }

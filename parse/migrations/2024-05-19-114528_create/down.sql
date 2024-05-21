@@ -5,4 +5,4 @@ DROP TABLE files;
 
 DROP TABLE objects;
 
-DROP TABLE replicators;
+DROP TABLE repls;

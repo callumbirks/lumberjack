@@ -1,6 +1,9 @@
+use chrono::{Local, NaiveDateTime};
+use diesel::result::DatabaseErrorKind;
 use log::LevelFilter;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use super::types::*;
 use super::*;
@@ -14,6 +17,16 @@ async fn insert_get_lines() -> Result<()> {
         .init();
     let path = PathBuf::from_str("lumberjack_test.sqlite").unwrap();
     let db = Database::open(&path, true).await?;
+    let object = Object {
+        id: 1,
+        ty: ObjectType::DB,
+    };
+    let file = File {
+        id: 0,
+        path: "".to_string(),
+        level: Level::Info,
+        timestamp: Local::now().naive_utc(),
+    };
     let lines = vec![
         Line {
             level: Level::Info,
@@ -21,13 +34,8 @@ async fn insert_get_lines() -> Result<()> {
             timestamp: chrono::Local::now().naive_utc(),
             message: "line1".to_string(),
             event_type: EventType::Common(CommonEvent::Created),
-            object: Object {
-                id: 1,
-                type_: ObjectType::DB,
-            },
-            file: File {
-                path: PathBuf::default(),
-            },
+            object_id: 1,
+            file_id: 0,
         },
         Line {
             level: Level::Info,
@@ -35,17 +43,14 @@ async fn insert_get_lines() -> Result<()> {
             timestamp: chrono::Local::now().naive_utc(),
             message: "line2".to_string(),
             event_type: EventType::Common(CommonEvent::Destroyed),
-            object: Object {
-                id: 1,
-                type_: ObjectType::DB,
-            },
-            file: File {
-                path: PathBuf::default(),
-            },
+            object_id: 1,
+            file_id: 0,
         },
     ];
 
-    db.insert_lines(lines.clone()).await?;
+    db.insert_files(&[file]).await?;
+    db.insert_objects(&[object]).await?;
+    db.insert_lines(&lines).await?;
 
     let fetched = db.get_line(Level::Info, 0).await?;
     assert_eq!(fetched, lines[0]);
@@ -56,7 +61,7 @@ async fn insert_get_lines() -> Result<()> {
     let fetched = db.get_line(Level::Info, 2).await;
     assert!(matches!(
         fetched.unwrap_err(),
-        Error::Sqlx(sqlx::Error::RowNotFound)
+        Error::Diesel(diesel::result::Error::NotFound)
     ));
 
     tokio::fs::remove_file(&path).await?;

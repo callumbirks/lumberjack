@@ -2,7 +2,7 @@ use semver::Version;
 use std::path::Path;
 use std::str::FromStr;
 
-use crate::data::Database;
+use crate::data::{Database, File, Line, Object};
 use crate::{Error, Result};
 
 mod dir;
@@ -13,7 +13,7 @@ pub use dir::DirParser;
 pub use file::FileParser;
 
 pub trait Parser {
-    async fn parse(path: impl AsRef<Path>, database: &Database) -> Result<()>;
+    async fn parse(path: impl AsRef<Path>) -> Result<(Vec<File>, Vec<Line>, Vec<Object>)>;
 }
 
 pub struct CBLVersion {

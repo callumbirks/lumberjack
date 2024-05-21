@@ -6,4 +6,3 @@ mod util;
 
 pub use database::Database;
 pub use types::*;
-use util::impl_sqlx_type;

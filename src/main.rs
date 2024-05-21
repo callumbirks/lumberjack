@@ -3,11 +3,6 @@ use std::fmt::Debug;
 use std::ops::Deref;
 use std::sync::{Arc, Weak};
 
-use crate::data::repl::Repl;
-use crate::data::{
-    DBEvent, LogEventType, LogLevel, LogLine, LogObject, LogObjectType, PullerEvent, PusherEvent,
-    ReplEvent,
-};
 use iced::futures::TryFutureExt;
 use iced::highlighter::{self};
 use iced::widget::shader::wgpu::naga::FastHashMap;
@@ -16,16 +11,16 @@ use iced::{keyboard, Command, Element, Length, Subscription};
 use iced::{Application, Font, Settings};
 
 use crate::error::{LumberjackError, Result};
-use crate::parse::puller::Puller;
-use crate::parse::pusher::Pusher;
-use crate::parse::{db::DB, LogHolder, LogParser};
 use crate::util::{open_folder, ContainsWithCase, Truncate};
 use crate::widget::log_table;
+
+use crate::data::{UIEventType, UILevel, UIObject, UIObjectType};
+use lumberjack_parse as parse;
+use lumberjack_parse::data::{Database, Line, Object, ObjectType};
 
 mod data;
 mod error;
 mod lumberjack;
-mod parse;
 mod util;
 mod widget;
 
@@ -38,10 +33,10 @@ fn main() -> iced::Result {
 
 #[derive(Debug, Clone)]
 enum FilterType {
-    Level(LogLevel),
-    ObjectType(LogObjectType),
-    Object(Weak<LogObject>),
-    Event(LogEventType),
+    Level(UILevel),
+    ObjectType(UIObjectType),
+    Object(Weak<Object>),
+    Event(UIEventType),
     Message(String),
 }
 
@@ -51,25 +46,25 @@ enum Message {
     Initialised(Result<LogHolder>),
     SelectFilter(FilterType),
     SetFilter(Filter),
-    DoneFilter(log_table::Content<Arc<LogLine>>),
-    RowClicked(u64, Arc<LogLine>),
+    DoneFilter(log_table::Content<Arc<Line>>),
+    RowClicked(u64, Arc<Line>),
     Scrolled(scrollable::Viewport),
 }
 
 #[derive(Default, Debug, Clone)]
 pub struct Filter {
-    level: Option<LogLevel>,
-    object_type: Option<LogObjectType>,
-    object: Option<Arc<LogObject>>,
-    event: Option<LogEventType>,
+    level: Option<UILevel>,
+    object_type: Option<UIObjectType>,
+    object: Option<Arc<Object>>,
+    event: Option<UIEventType>,
     message: Box<str>,
 }
 
 struct App {
-    log_lines: Vec<Arc<LogLine>>,
-    objects: FastHashMap<LogObjectType, Vec<Arc<LogObject>>>,
-    content: log_table::Content<Arc<LogLine>>,
-    selected_line: Option<Arc<LogLine>>,
+    log_lines: Vec<Arc<Line>>,
+    objects: FastHashMap<ObjectType, Vec<Arc<Object>>>,
+    content: log_table::Content<Arc<Line>>,
+    selected_line: Option<Arc<Line>>,
     filter: Filter,
     last_error: Option<LumberjackError>,
     is_loading: bool,
@@ -117,9 +112,9 @@ impl Application for App {
             Message::Initialised(log_holder) => {
                 self.is_loading = false;
                 match log_holder {
-                    Ok(log_holder) => {
-                        self.log_lines = log_holder.log_lines;
-                        self.objects = log_holder.objects;
+                    Ok(holder) => {
+                        self.log_lines = holder.lines;
+                        self.objects = holder.objects;
                     }
                     Err(err) => self.last_error = Some(err),
                 }
@@ -148,13 +143,13 @@ impl Application for App {
                 match filter {
                     FilterType::Level(level) => {
                         self.filter.level = match level {
-                            LogLevel::None => None,
+                            UILevel::None => None,
                             other => Some(other),
                         }
                     }
                     FilterType::ObjectType(object_type) => {
                         self.filter.object_type = match object_type {
-                            LogObjectType::None => None,
+                            UIObjectType::None => None,
                             other => Some(other),
                         };
                         self.filter.object = None;
@@ -162,7 +157,7 @@ impl Application for App {
                     FilterType::Object(object) => self.filter.object = object.upgrade(),
                     FilterType::Event(event) => {
                         self.filter.event = match event {
-                            LogEventType::None => None,
+                            UIEventType::None => None,
                             other => Some(other),
                         }
                     }
@@ -191,14 +186,14 @@ impl Application for App {
 
         let filters = Row::with_children([
             pick_list(
-                all::<LogLevel>().collect::<Box<_>>(),
+                all::<UILevel>().collect::<Box<_>>(),
                 self.filter.level,
                 |level| Message::SelectFilter(FilterType::Level(level)),
             )
             .placeholder("Level")
             .into(),
             pick_list(
-                all::<LogObjectType>().collect::<Box<_>>(),
+                all::<UIObjectType>().collect::<Box<_>>(),
                 self.filter.object_type,
                 |obj_type| Message::SelectFilter(FilterType::ObjectType(obj_type)),
             )
@@ -279,7 +274,7 @@ impl Application for App {
 }
 
 impl App {
-    pub fn objects_of_type(&self) -> Vec<Arc<LogObject>> {
+    pub fn objects_of_type(&self) -> Vec<Arc<UIObject>> {
         static EMPTY: Vec<Arc<LogObject>> = vec![];
         if let Some(selected_type) = self.filter.object_type {
             self.objects[&selected_type].clone()
@@ -321,14 +316,29 @@ impl App {
     }
 }
 
+#[derive(Debug, Clone)]
+struct LogHolder {
+    pub lines: Vec<Arc<Line>>,
+    pub objects: FastHashMap<ObjectType, Vec<Arc<Object>>>,
+}
+
 pub async fn initialise() -> Result<LogHolder> {
-    open_folder()
-        .and_then(LogParser::parse::<Repl>)
-        .and_then(LogParser::parse::<DB>)
-        .and_then(LogParser::parse::<Puller>)
-        .and_then(LogParser::parse::<Pusher>)
-        .await
-        .and_then(LogParser::finish)
+    let db = open_folder().await?;
+    let lines = db
+        .all_lines()
+        .await?
+        .into_iter()
+        .map(|l| Arc::new(l))
+        .collect();
+
+    let mut objects = FastHashMap::default();
+
+    for obj in db.all_objects().await? {
+        let entry = objects.entry(obj.ty).or_insert_with(Vec::new);
+        entry.push(Arc::new(obj));
+    }
+
+    Ok(LogHolder { lines, objects })
 }
 
 pub async fn content_with_filter(

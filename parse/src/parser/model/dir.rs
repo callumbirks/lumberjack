@@ -1,9 +1,11 @@
-use crate::parser::model::Model;
+use crate::data::{CommonEvent, EventType, File, Line, Object, ObjectExtra, ObjectType};
+use crate::parser::model::{Model, Timestamp};
 use crate::parser::{CBLVersion, Platform};
-use crate::{parser, Error};
+use crate::{parser, Error, Result};
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use lazy_static::lazy_static;
 use rangemap::RangeMap;
-use regex::Regex;
+use regex::{Match, Regex};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::ops::{Deref, Range};
@@ -16,7 +18,7 @@ pub struct DirParserModel {
 impl Model for DirParserModel {
     /// Parse a CBL version string and return `Self` with the correct patterns loaded for that
     /// version.
-    fn from_version_string(line: String) -> crate::Result<Box<Self>> {
+    fn from_version_string(line: &str) -> crate::Result<Box<Self>> {
         // Iterate over the available sets of patterns. PATTERNS_MAP is a map from a range
         // of version numbers to a preloaded YAML file.
         for (version_range, patterns) in PATTERNS_MAP.iter() {
@@ -34,6 +36,87 @@ impl Model for DirParserModel {
             }
         }
         Err(Error::NoMatches)
+    }
+
+    fn parse_timestamp(&self, line: &str) -> crate::Result<Timestamp> {
+        let re = Regex::new(&self.patterns.timestamp)?;
+
+        let Some(caps) = re.captures(line) else {
+            return Err(Error::NoMatches);
+        };
+
+        let Some(ts_match) = caps.name("ts") else {
+            return Err(Error::NoMatches);
+        };
+
+        let ts_str = ts_match.as_str();
+
+        if self.patterns.full_datetime {
+            Ok(Timestamp::DateTime(NaiveDateTime::parse_from_str(
+                ts_str,
+                &self.patterns.timestamp_format,
+            )?))
+        } else {
+            Ok(Timestamp::Time(NaiveTime::parse_from_str(
+                ts_str,
+                &self.patterns.timestamp_format,
+            )?))
+        }
+    }
+
+    fn parse_line(
+        &self,
+        line: &str,
+        line_num: usize,
+        file: &File,
+        base_date: NaiveDate,
+    ) -> Result<(Line, Object)> {
+        let re = Regex::new(&self.patterns.object)?;
+        let Some(caps) = re.captures(line) else {
+            return Err(Error::NoMatches);
+        };
+
+        let caps = (caps.name("obj"), caps.name("id"));
+
+        let Some((obj_str, id_str)) = (match caps {
+            (Some(obj), Some(id)) => Some((obj.as_str(), id.as_str())),
+            _ => None,
+        }) else {
+            return Err(Error::NoMatches);
+        };
+
+        let Some(object_type) = (match obj_str {
+            "DB" => Some(ObjectType::DB),
+            "Repl" | "repl" => Some(ObjectType::Repl),
+            "Pusher" => Some(ObjectType::Pusher),
+            "Puller" => Some(ObjectType::Puller),
+            _ => None,
+        }) else {
+            return Err(Error::NoMatches);
+        };
+
+        let object_id: i32 = id_str.parse()?;
+
+        let timestamp = match self.parse_timestamp(line)? {
+            Timestamp::DateTime(dt) => dt,
+            Timestamp::Time(t) => base_date.and_time(t),
+        };
+
+        Ok((
+            Line {
+                level: file.level,
+                line_num: line_num as i64,
+                timestamp,
+                message: line.to_string(),
+                event_type: EventType::None, // TODO Event parsing
+                object_id,
+                file_id: file.id,
+            },
+            Object {
+                id: object_id,
+                ty: object_type,
+            },
+        ))
     }
 }
 
@@ -88,7 +171,20 @@ lazy_static! {
     )]);
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct Patterns {
     version: String,
+    full_datetime: bool,
+    timestamp: String,
+    timestamp_format: String,
+    object: String,
+    objects: ObjectPatterns,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct ObjectPatterns {
+    db: String,
+    repl: String,
+    pusher: String,
+    puller: String,
 }

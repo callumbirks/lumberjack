@@ -4,14 +4,16 @@ diesel::table! {
     files (id) {
         id -> Integer,
         path -> Text,
+        level -> Integer,
+        timestamp -> Timestamp,
     }
 }
 
 diesel::table! {
     lines (level, line_num) {
         level -> Integer,
-        line_num -> Integer,
-        timestamp -> Integer,
+        line_num -> BigInt,
+        timestamp -> Timestamp,
         message -> Text,
         event_type -> Integer,
         object_id -> Integer,
@@ -22,25 +24,24 @@ diesel::table! {
 diesel::table! {
     objects (id) {
         id -> Integer,
-        type_ -> Integer,
+        ty -> Integer,
     }
 }
 
 diesel::table! {
-    replicators (id) {
-        id -> Integer,
-        config -> Binary,
-        pusher_id -> Nullable<Integer>,
-        puller_id -> Nullable<Integer>,
+    repls (object_id) {
+        object_id -> Integer,
+        config -> Text,
     }
 }
 
 diesel::joinable!(lines -> files (file_id));
 diesel::joinable!(lines -> objects (object_id));
+diesel::joinable!(repls -> objects (object_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     files,
     lines,
     objects,
-    replicators,
+    repls,
 );

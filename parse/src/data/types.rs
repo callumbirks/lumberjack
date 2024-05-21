@@ -1,38 +1,52 @@
-mod repl;
+pub mod repl;
 
-use crate::data::impl_sqlx_type;
-use crate::data::util::impl_display_debug;
+use crate::data::util::{diesel_tosql_transmute, impl_display_debug};
+use crate::schema::{files, lines, objects};
 use chrono::NaiveDateTime;
-use sqlx::database::{HasArguments, HasValueRef};
-use sqlx::encode::IsNull;
-use sqlx::error::BoxDynError;
-use sqlx::sqlite::SqliteRow;
-use sqlx::{Error, Row, Sqlite};
-use std::cmp::Ordering;
-use std::fmt::{Debug, Display, Formatter};
-use std::path::PathBuf;
-use std::str::FromStr;
+use diesel::prelude::*;
+use diesel::{sql_types, AsExpression, FromSqlRow};
+use std::hash::{Hash, Hasher};
 
-pub use repl::Collection as ReplCollection;
-pub use repl::Config as ReplConfig;
-pub use repl::Mode as ReplMode;
-pub use repl::Repl;
-
-#[derive(sqlx::FromRow, Debug, Clone)]
+#[derive(Insertable, Identifiable, Queryable, Selectable, Associations, Debug, Clone)]
+#[diesel(primary_key(level, line_num))]
+#[diesel(belongs_to(Object))]
+#[diesel(belongs_to(File))]
+#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct Line {
     pub level: Level,
-    pub line_num: u32,
+    pub line_num: i64,
     pub timestamp: NaiveDateTime,
     pub message: String,
     pub event_type: EventType,
-    #[sqlx(flatten)]
-    pub object: Object,
-    #[sqlx(flatten)]
-    pub file: File,
+    pub object_id: i32,
+    pub file_id: i32,
 }
 
-#[derive(sqlx::Type, Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(u16)]
+#[derive(Insertable, Identifiable, Queryable, Selectable, PartialEq, Eq, Debug, Clone)]
+#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+pub struct Object {
+    pub id: i32,
+    pub ty: ObjectType,
+}
+
+#[derive(Insertable, Identifiable, Queryable, Selectable, Debug, Clone)]
+#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+pub struct File {
+    pub id: i32,
+    pub path: String,
+    pub level: Level,
+    pub timestamp: NaiveDateTime,
+}
+
+#[derive(Debug, Clone)]
+pub enum ObjectExtra {
+    None,
+    Repl(Box<repl::Repl>),
+}
+
+#[derive(AsExpression, FromSqlRow, Hash, Debug, Copy, Clone, Eq, PartialEq)]
+#[repr(i32)]
+#[diesel(sql_type = sql_types::Integer)]
 pub enum Level {
     Info,
     Verbose,
@@ -42,38 +56,11 @@ pub enum Level {
 }
 
 impl_display_debug!(Level);
+diesel_tosql_transmute!(Level, i32, sql_types::Integer);
 
-#[derive(sqlx::FromRow, Debug, Clone, Eq, PartialEq)]
-pub struct Object {
-    pub id: u32,
-    pub type_: ObjectType,
-    #[sqlx(skip)]
-    pub extra: ObjectExtra,
-}
-
-#[derive(Default, Debug, Clone, Eq, PartialEq)]
-pub enum ObjectExtra {
-    #[default]
-    None,
-    Repl(Box<Repl>),
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct File {
-    pub path: PathBuf,
-}
-
-impl<'r> sqlx::FromRow<'r, SqliteRow> for File {
-    fn from_row(row: &'r SqliteRow) -> Result<Self, Error> {
-        let path_str: String = row.get("path");
-        Ok(Self {
-            path: PathBuf::from_str(&path_str).unwrap(),
-        })
-    }
-}
-
-#[derive(sqlx::Type, Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(u16)]
+#[derive(AsExpression, FromSqlRow, Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[repr(i32)]
+#[diesel(sql_type = sql_types::Integer)]
 pub enum ObjectType {
     DB,
     Repl,
@@ -81,24 +68,29 @@ pub enum ObjectType {
     Puller,
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(u16)]
+impl_display_debug!(ObjectType);
+diesel_tosql_transmute!(ObjectType, i32, sql_types::Integer);
+
+#[derive(AsExpression, FromSqlRow, Debug, Copy, Clone, Eq, PartialEq)]
+#[repr(i16)]
+#[diesel(sql_type = sql_types::Integer)]
 pub enum EventType {
+    None,
     Common(CommonEvent),
     DB(DBEvent),
 }
 
-impl_sqlx_type!(<Sqlite> EventType as u32);
+diesel_tosql_transmute!(EventType, i32, sql_types::Integer);
 
-#[derive(sqlx::Type, Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(u16)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[repr(i16)]
 pub enum CommonEvent {
     Created,
     Destroyed,
 }
 
-#[derive(sqlx::Type, Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(u16)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[repr(i16)]
 pub enum DBEvent {
     Opening,
     TxBegin,
@@ -109,28 +101,13 @@ pub enum DBEvent {
 
 impl Object {
     pub fn name(&self) -> String {
-        format!("{}#{}", self.type_, self.id)
+        format!("{}#{}", self.ty, self.id)
     }
 }
 
-impl Display for Object {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut builder = f.debug_struct("Object");
-        builder.field("id", &self.id);
-        builder.field("type", &self.type_);
-        match &self.extra {
-            ObjectExtra::None => {}
-            ObjectExtra::Repl(r) => {
-                builder.field("repl", r.as_ref());
-            }
-        }
-        builder.finish()
-    }
-}
-
-impl Display for ObjectType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        <ObjectType as Debug>::fmt(self, f)
+impl Hash for Object {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
     }
 }
 
@@ -143,13 +120,13 @@ impl PartialEq<Self> for Line {
 impl Eq for Line {}
 
 impl PartialOrd<Self> for Line {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.timestamp.partial_cmp(&other.timestamp)
     }
 }
 
 impl Ord for Line {
-    fn cmp(&self, other: &Self) -> Ordering {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.timestamp.cmp(&other.timestamp)
     }
 }

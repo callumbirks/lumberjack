@@ -1,23 +1,30 @@
-use super::Object;
+use crate::data::util::diesel_tosql_json;
+use crate::schema::repls;
+use diesel::deserialize::FromSql;
+use diesel::prelude::*;
+use diesel::serialize::IsNull;
+use diesel::serialize::{Output, ToSql};
+use diesel::sqlite::Sqlite;
+use diesel::AsExpression;
+use diesel::{sql_types, FromSqlRow};
 use serde::{Deserialize, Serialize};
-use sqlx::sqlite::SqliteRow;
-use sqlx::Error;
 
-#[derive(sqlx::FromRow, Debug, Clone)]
+#[derive(Insertable, Identifiable, Queryable, Selectable, Associations, Debug, Clone)]
+#[diesel(primary_key(object_id))]
+#[diesel(belongs_to(crate::data::Object))]
+#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct Repl {
-    pub config: sqlx::types::Json<Config>,
-    #[sqlx(flatten)]
-    #[sqlx(default)]
-    pub pusher: Option<Object>,
-    #[sqlx(flatten)]
-    #[sqlx(default)]
-    pub puller: Option<Object>,
+    pub object_id: i32,
+    pub config: Config,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(AsExpression, FromSqlRow, Serialize, Deserialize, Debug, Clone)]
+#[diesel(sql_type = sql_types::Text)]
 pub struct Config {
     collections: Vec<Collection>,
 }
+
+diesel_tosql_json!(Config);
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Collection {
@@ -38,7 +45,7 @@ pub enum Mode {
 
 impl PartialEq for Repl {
     fn eq(&self, other: &Self) -> bool {
-        self.pusher.id == other.pusher.id
+        self.object_id == other.object_id
     }
 }
 
