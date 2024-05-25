@@ -1,0 +1,26 @@
+[package]
+name = "lumberjack_parse"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+chrono.workspace = true
+diesel = { workspace = true, features = ["sqlite", "chrono", "serde_json", "returning_clauses_for_sqlite_3_35"] }
+diesel_migrations.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt", "macros"] }
+tokio-stream = { workspace = true, features = ["io-util"] }
+tokio-util = { workspace = true, features = ["io"] }
+futures.workspace = true
+env_logger.workspace = true
+log.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_yaml.workspace = true
+serde_json.workspace = true
+lazy_static.workspace = true
+rangemap.workspace = true
+semver.workspace = true

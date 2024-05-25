@@ -1,0 +1,22 @@
+# Captures:
+#   ver: version / release (i.e. "3.1.1")
+#   plat: platform (i.e. ".NET"
+#   os: OS (i.e. "Microsoft Windows 10.0.22621")
+#   build: build number (i.e. "3" for 3.1.1-3)
+#   commit: combined commit string (i.e. "d8a2f91+3050eba")
+version: "/---- CouchbaseLite/(?<ver>\d+.\d+.\d+).+\((?<plat>\S+); (?<os>.*)\) Build/(?<build>\d+) LiteCore/\d+.\d+.\d+ \(\d+\) Commit/(?<commit>\S+) ----"
+# Captures:
+#   ts: Either timestamp or full datetime (i.e. "23:39:11.925267" or "2024-05-21T23:39:11.925267")
+timestamp: "(?<ts>\d{2}:\d{2}:\d{2}.\d+)\|"
+# Whether the log lines contain just a timestamp or a full datetime
+full_datetime: false
+# See https://docs.rs/chrono/latest/chrono/format/strftime/index.html
+timestamp_format: "%H:%M:%S%.6f"
+object: ": {(?<obj>\w+)#(?<id>\d+)}"
+# Captures
+#   id: Object ID
+objects:
+  db: ": {DB#(?<id>\d+)}"
+  repl: "(?i): {repl#(?<id>\d+)}"
+  pusher: ": {Pusher#(?<id>\d+)}"
+  puller: ": {Puller#(?<id>\d+)}"
