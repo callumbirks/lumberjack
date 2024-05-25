@@ -1,4 +1,4 @@
-use crate::data::{Database, File, Line, Object};
+use crate::data::{File, Line, Object};
 use crate::parser::Parser;
 use std::path::{Path, PathBuf};
 

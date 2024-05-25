@@ -52,13 +52,13 @@ async fn insert_get_lines() -> Result<()> {
     db.insert_objects(&[object]).await?;
     db.insert_lines(&lines).await?;
 
-    let fetched = db.get_line(Level::Info, 0).await?;
+    let fetched = db.get_lines(Level::Info, 0).await?;
     assert_eq!(fetched, lines[0]);
 
-    let fetched = db.get_line(Level::Info, 1).await?;
+    let fetched = db.get_lines(Level::Info, 1).await?;
     assert_eq!(fetched, lines[1]);
 
-    let fetched = db.get_line(Level::Info, 2).await;
+    let fetched = db.get_lines(Level::Info, 2).await;
     assert!(matches!(
         fetched.unwrap_err(),
         Error::Diesel(diesel::result::Error::NotFound)

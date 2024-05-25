@@ -2,7 +2,7 @@ use semver::Version;
 use std::path::Path;
 use std::str::FromStr;
 
-use crate::data::{Database, File, Line, Object};
+use crate::data::{File, Line, Object};
 use crate::{Error, Result};
 
 mod dir;

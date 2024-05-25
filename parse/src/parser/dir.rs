@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use tokio_stream::wrappers::ReadDirStream;
 
-use crate::data::{Database, File, Level, Line, Object};
+use crate::data::{File, Level, Line, Object};
 use crate::parser::model::{DirParserModel, Model};
 use crate::util::read_lines;
 use crate::{Error, Result};

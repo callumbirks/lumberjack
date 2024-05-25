@@ -4,5 +4,5 @@ mod test;
 mod types;
 mod util;
 
-pub use database::Database;
+pub use database::open_db;
 pub use types::*;
