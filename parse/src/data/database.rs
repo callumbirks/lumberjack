@@ -36,7 +36,7 @@ pub async fn open_db(path: impl AsRef<Path>, reset: bool) -> Result<SqliteConnec
     }
     conn.run_pending_migrations(MIGRATIONS)?;
 
-    log::info!("Database opened");
+    log::info!("Database opened at \"{}\"", path);
 
     Ok(conn)
 }

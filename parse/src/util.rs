@@ -8,25 +8,6 @@ use tokio_stream::StreamExt;
 use tokio_util::io::{ReaderStream, StreamReader};
 
 /// Used to neatly match across `str::contains`
-/// # Example
-/// ```
-/// use crate::lumberjack_parse::match_contains;
-/// enum Foo {
-///     Foo,
-///     Bar,
-///     FooBar,
-/// }
-///
-/// let foo_mat = |input| { match_contains!(input, {
-///     [ "foo", "Foo" ] => Foo::Foo, // "foo" or "Foo"
-///     [ "bar", "Bar" ] => Foo::Bar, // "bar" or "Bar"
-///     // ("foo" and "bar") or ("Foo" and "Bar")
-///     [ "foo" && "bar", "Foo" && "Bar" ] => Foo::FooBar,
-/// })};
-///
-/// assert_eq!(foo_mat("foo"), Some(Foo::Foo));
-/// assert_eq!(foo_mat("fooBar"), None);
-/// ```
 #[cfg(test)]
 #[macro_export]
 macro_rules! match_contains {

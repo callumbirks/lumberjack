@@ -7,8 +7,21 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+default = ["xlsx"]
+xlsx = ["dep:rust_xlsxwriter"]
+
 [dependencies]
-lumberjack_parse.workspace = true
+lumberjack_parse = { workspace = true }
+
+clap = { workspace = true, features = ["derive"] }
+diesel = { workspace = true }
+env_logger = { workspace = true }
+log = { workspace = true }
+rust_xlsxwriter = { workspace = true, optional = true, features = ["chrono", "serde"] }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
 
 [workspace]
 members = [
@@ -23,28 +36,30 @@ license = "MIT"
 repository = "https://github.com/couchbaselabs/cbl-lumberjack"
 
 [workspace.dependencies]
-lumberjack = { version = "0.1.0", path = "." }
+lumberjack_cli = { version = "0.1.0", path = "." }
 lumberjack_parse = { version = "0.1.0", path = "parse" }
 
-thiserror = "1.0"
-grep = "0.3"
 chrono = "0.4"
-regex = "1.10"
-tokio = { version = "1", features = ["fs"] }
-tokio-stream = { version = "0.1", features = ["fs"] }
-tokio-util = "0.7.11"
-env_logger = "0.11"
-lazy_static = "1.4"
-log = "0.4"
-enum-iterator = "2.1"
-futures = "0.3"
+clap = "4.5.4"
 diesel = "2.1"
 diesel_migrations = "2.1"
-serde = { version = "1.0", features = ["derive"] }
-serde_yaml = "0.9"
-serde_json = "1.0"
+env_logger = "0.11"
+enum-iterator = "2.1"
+futures = "0.3"
+grep = "0.3"
+lazy_static = "1.4"
+log = "0.4"
 rangemap = "1.5"
+regex = "1.10"
+rust_xlsxwriter = { version = "0.64.2" }
 semver = "1.0"
+serde = "1.0"
+serde_json = "1.0"
+serde_yaml = "0.9"
+thiserror = "1.0"
+tokio = "1"
+tokio-stream = "0.1"
+tokio-util = "0.7.11"
 
 [workspace.lints.clippy]
 pedantic = "warn"

@@ -1,37 +1,58 @@
-use crate::data::{CommonEvent, EventType, File, Line, Object, ObjectExtra, ObjectType};
-use crate::parser::model::{Model, Timestamp};
-use crate::parser::{CBLVersion, Platform};
-use crate::{parser, Error, Result};
+use std::str::FromStr;
+
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use lazy_static::lazy_static;
 use rangemap::RangeMap;
-use regex::{Match, Regex};
+use regex::Regex;
 use semver::Version;
 use serde::{Deserialize, Serialize};
-use std::ops::{Deref, Range};
-use std::str::FromStr;
+
+use crate::data::{EventType, File, Line, Object, ObjectType};
+use crate::parser::model::{Compatibility, Model, Timestamp};
+use crate::parser::{CBLVersion, Platform};
+use crate::{Error, Result};
 
 pub struct DirParserModel {
+    pub compatibility: Compatibility,
     patterns: Patterns,
+    regex_cache: RegexCache,
 }
 
 impl Model for DirParserModel {
     /// Parse a CBL version string and return `Self` with the correct patterns loaded for that
     /// version.
-    fn from_version_string(line: &str) -> crate::Result<Box<Self>> {
+    fn from_version_string(line: &str) -> Result<Box<Self>> {
         // Iterate over the available sets of patterns. PATTERNS_MAP is a map from a range
         // of version numbers to a preloaded YAML file.
         for (version_range, patterns) in PATTERNS_MAP.iter() {
             let patterns: Patterns = serde_yaml::from_str(patterns)?;
             if let Ok(version) = parse_version(&line, &patterns) {
                 return if version_range.contains(&version.version) {
-                    Ok(Box::new(Self { patterns }))
+                    let regex_cache = RegexCache {
+                        version: Regex::new(&patterns.version)?,
+                        timestamp: Regex::new(&patterns.timestamp)?,
+                        object: Regex::new(&patterns.object)?,
+                    };
+                    Ok(Box::new(Self {
+                        compatibility: Compatibility::with_versions(version_range.clone()),
+                        patterns,
+                        regex_cache,
+                    }))
                 } else {
                     let Some(patterns) = PATTERNS_MAP.get(&version.version) else {
                         return Err(Error::UnsupportedVersion(version.version));
                     };
                     let patterns: Patterns = serde_yaml::from_str(patterns)?;
-                    Ok(Box::new(Self { patterns }))
+                    let regex_cache = RegexCache {
+                        version: Regex::new(&patterns.version)?,
+                        timestamp: Regex::new(&patterns.timestamp)?,
+                        object: Regex::new(&patterns.object)?,
+                    };
+                    Ok(Box::new(Self {
+                        compatibility: Compatibility::with_versions(version_range.clone()),
+                        patterns,
+                        regex_cache,
+                    }))
                 };
             }
         }
@@ -39,7 +60,7 @@ impl Model for DirParserModel {
     }
 
     fn parse_timestamp(&self, line: &str) -> crate::Result<Timestamp> {
-        let re = Regex::new(&self.patterns.timestamp)?;
+        let re = &self.regex_cache.timestamp;
 
         let Some(caps) = re.captures(line) else {
             return Err(Error::NoMatches);
@@ -71,9 +92,8 @@ impl Model for DirParserModel {
         file: &File,
         base_date: NaiveDate,
     ) -> Result<(Line, Object)> {
-        let re = Regex::new(&self.patterns.object)?;
-        let Some(caps) = re.captures(line) else {
-            return Err(Error::NoMatches);
+        let Some(caps) = &self.regex_cache.object.captures(line) else {
+            return Err(Error::NoObject(line.to_string()));
         };
 
         let caps = (caps.name("obj"), caps.name("id"));
@@ -82,7 +102,7 @@ impl Model for DirParserModel {
             (Some(obj), Some(id)) => Some((obj.as_str(), id.as_str())),
             _ => None,
         }) else {
-            return Err(Error::NoMatches);
+            return Err(Error::NoObject(line.to_string()));
         };
 
         let Some(object_type) = (match obj_str {
@@ -90,9 +110,23 @@ impl Model for DirParserModel {
             "Repl" | "repl" => Some(ObjectType::Repl),
             "Pusher" => Some(ObjectType::Pusher),
             "Puller" => Some(ObjectType::Puller),
+            "Inserter" => Some(ObjectType::Inserter),
+            "BLIPIO" => Some(ObjectType::BLIPIO),
+            "IncomingRev" => Some(ObjectType::IncomingRev),
+            "Connection" => Some(ObjectType::Connection),
+            "C4SocketImpl" => Some(ObjectType::C4SocketImpl),
+            "RevFinder" => Some(ObjectType::RevFinder),
+            "ReplicatorChangesFeed" => Some(ObjectType::ReplicatorChangesFeed),
+            "QueryEnum" => Some(ObjectType::QueryEnum),
+            "C4Replicator" => Some(ObjectType::C4Replicator),
+            "Housekeeper" => Some(ObjectType::Housekeeper),
+            "Shared" => Some(ObjectType::Shared),
+            "CollectionImpl" => Some(ObjectType::CollectionImpl),
+            "Query" => Some(ObjectType::Query),
+            "DBAccess" => Some(ObjectType::DBAccess),
             _ => None,
         }) else {
-            return Err(Error::NoMatches);
+            return Err(Error::UnknownObject(obj_str.to_string()));
         };
 
         let object_id: i32 = id_str.parse()?;
@@ -120,7 +154,7 @@ impl Model for DirParserModel {
     }
 }
 
-fn parse_version(line: &str, patterns: &Patterns) -> crate::Result<CBLVersion> {
+fn parse_version(line: &str, patterns: &Patterns) -> Result<CBLVersion> {
     let re = Regex::new(&patterns.version)?;
 
     let Some(caps) = re.captures(line) else {
@@ -178,13 +212,10 @@ struct Patterns {
     timestamp: String,
     timestamp_format: String,
     object: String,
-    objects: ObjectPatterns,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct ObjectPatterns {
-    db: String,
-    repl: String,
-    pusher: String,
-    puller: String,
+struct RegexCache {
+    version: Regex,
+    timestamp: Regex,
+    object: Regex,
 }

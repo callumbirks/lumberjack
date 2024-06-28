@@ -12,7 +12,7 @@ CREATE TABLE lines(
     file_id    INTEGER          NOT NULL,
     -- Composite primary key, level and line_num are always unique. In the case of rollover, the line_num in the
     -- next file starts after the last line_num in the previous file of that level.
-    PRIMARY KEY (level, line_num),
+    PRIMARY KEY (file_id, line_num),
     FOREIGN KEY (object_id)
         REFERENCES objects(id),
     FOREIGN KEY (file_id)

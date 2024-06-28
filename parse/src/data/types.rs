@@ -5,9 +5,13 @@ use crate::schema::{files, lines, objects};
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use diesel::{sql_types, AsExpression, FromSqlRow};
+use serde::Serialize;
 use std::hash::{Hash, Hasher};
+use std::str::FromStr;
 
-#[derive(Insertable, Identifiable, Queryable, Selectable, Associations, Debug, Clone)]
+#[derive(
+    Insertable, Serialize, Identifiable, Queryable, Selectable, Associations, Debug, Clone,
+)]
 #[diesel(primary_key(level, line_num))]
 #[diesel(belongs_to(Object))]
 #[diesel(belongs_to(File))]
@@ -22,14 +26,16 @@ pub struct Line {
     pub file_id: i32,
 }
 
-#[derive(Insertable, Identifiable, Queryable, Selectable, PartialEq, Eq, Debug, Clone)]
+#[derive(
+    Insertable, Identifiable, Queryable, Selectable, Serialize, PartialEq, Eq, Debug, Clone,
+)]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct Object {
     pub id: i32,
     pub ty: ObjectType,
 }
 
-#[derive(Insertable, Identifiable, Queryable, Selectable, Debug, Clone)]
+#[derive(Insertable, Identifiable, Queryable, Selectable, Serialize, Debug, Clone)]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct File {
     pub id: i32,
@@ -44,7 +50,7 @@ pub enum ObjectExtra {
     Repl(Box<repl::Repl>),
 }
 
-#[derive(AsExpression, FromSqlRow, Hash, Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(AsExpression, FromSqlRow, Serialize, Hash, Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(i32)]
 #[diesel(sql_type = sql_types::Integer)]
 pub enum Level {
@@ -58,20 +64,35 @@ pub enum Level {
 impl_display_debug!(Level);
 diesel_tosql_transmute!(Level, i32, sql_types::Integer);
 
-#[derive(AsExpression, FromSqlRow, Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(AsExpression, FromSqlRow, Serialize, Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(i32)]
 #[diesel(sql_type = sql_types::Integer)]
 pub enum ObjectType {
     DB,
+    StaticDB,
     Repl,
     Pusher,
     Puller,
+    Inserter,
+    BLIPIO,
+    IncomingRev,
+    Connection,
+    C4SocketImpl,
+    RevFinder,
+    ReplicatorChangesFeed,
+    QueryEnum,
+    C4Replicator,
+    Housekeeper,
+    Shared,
+    CollectionImpl,
+    Query,
+    DBAccess,
 }
 
 impl_display_debug!(ObjectType);
 diesel_tosql_transmute!(ObjectType, i32, sql_types::Integer);
 
-#[derive(AsExpression, FromSqlRow, Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(AsExpression, FromSqlRow, Serialize, Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(i16)]
 #[diesel(sql_type = sql_types::Integer)]
 pub enum EventType {
@@ -82,14 +103,14 @@ pub enum EventType {
 
 diesel_tosql_transmute!(EventType, i32, sql_types::Integer);
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Serialize, Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(i16)]
 pub enum CommonEvent {
     Created,
     Destroyed,
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Serialize, Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(i16)]
 pub enum DBEvent {
     Opening,
@@ -105,6 +126,7 @@ impl Object {
     }
 }
 
+// Hashed by `id`, because this is always unique across objects.
 impl Hash for Object {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.id.hash(state);
@@ -128,5 +150,20 @@ impl PartialOrd<Self> for Line {
 impl Ord for Line {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.timestamp.cmp(&other.timestamp)
+    }
+}
+
+impl FromStr for Level {
+    type Err = crate::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "info" => Ok(Self::Info),
+            "warning" => Ok(Self::Warn),
+            "debug" => Ok(Self::Debug),
+            "verbose" => Ok(Self::Verbose),
+            "error" => Ok(Self::Error),
+            _ => Err(crate::Error::NoSuchLevel(s.to_string())),
+        }
     }
 }
