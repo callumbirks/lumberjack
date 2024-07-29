@@ -8,6 +8,8 @@ macro_rules! impl_display_debug {
     };
 }
 
+/// Implement `ToSql` and `FromSql` for a type by transmuting it to another type.
+/// This should only be considered safe for enums, where they use `#[repr($out_ty)]`.
 macro_rules! diesel_tosql_transmute {
     ($in_ty:ty, $out_ty:ty, $sql_ty:ty) => {
         impl diesel::serialize::ToSql<$sql_ty, diesel::sqlite::Sqlite> for $in_ty {
@@ -34,6 +36,7 @@ macro_rules! diesel_tosql_transmute {
     };
 }
 
+#[allow(unused)]
 macro_rules! diesel_tosql_json {
     ($t:ty) => {
         impl diesel::deserialize::FromSql<diesel::sql_types::Text, diesel::sqlite::Sqlite> for $t {
@@ -61,6 +64,5 @@ macro_rules! diesel_tosql_json {
     };
 }
 
-pub(super) use diesel_tosql_json;
 pub(super) use diesel_tosql_transmute;
 pub(super) use impl_display_debug;

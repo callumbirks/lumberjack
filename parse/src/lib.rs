@@ -4,12 +4,12 @@ mod parser;
 pub mod schema;
 pub mod util;
 
-use crate::data::open_db;
-use crate::parser::{DirParser, FileParser, Parser};
-use diesel::{Connection, Insertable, RunQueryDsl, SqliteConnection};
+use crate::data::{open_db, Object};
+use crate::parser::Parser;
+use diesel::{Connection, RunQueryDsl, SqliteConnection};
 pub use error::{Error, Result};
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Debug, Clone)]
 pub struct ParserOptions<'a> {
@@ -30,8 +30,8 @@ impl<'a> ParserOptions<'a> {
         self
     }
 
-    pub async fn execute(mut self) -> Result<SqliteConnection> {
-        _parse(self).await
+    pub fn execute(self) -> Result<SqliteConnection> {
+        _parse(self)
     }
 }
 
@@ -40,7 +40,7 @@ pub fn parse(in_path: &Path) -> ParserOptions {
 }
 
 /// Parse logs from the given path (either a file or a directory) and return the populated database.
-async fn _parse<'a>(options: ParserOptions<'a>) -> Result<SqliteConnection> {
+fn _parse<'a>(options: ParserOptions<'a>) -> Result<SqliteConnection> {
     log::debug!("Starting parse with options: {:?}", &options);
 
     let hash = {
@@ -51,34 +51,31 @@ async fn _parse<'a>(options: ParserOptions<'a>) -> Result<SqliteConnection> {
 
     // The database path is the hash of the log path in hexadecimal (with 'sqlite' extension)
     let db_path = format!("{hash:x}.sqlite");
-    let mut conn = open_db(db_path, true).await?;
+    let mut conn = open_db(db_path, true)?;
 
-    let (files, lines, objects) = if options.in_path.is_dir() {
-        log::info!("Input path is a directory, using directory parser...");
-        DirParser::parse(options.in_path).await?
-    } else {
-        log::info!("Input path is a file, using file parser...");
-        FileParser::parse(options.in_path).await?
-    };
+    let parser = Parser::new(options.in_path)?;
 
-    conn.transaction(|tx| {
-        diesel::insert_into(schema::files::table)
-            .values(&files)
-            .execute(tx)?;
-        diesel::insert_into(schema::objects::table)
-            .values(&objects)
-            .execute(tx)?;
-        diesel::insert_into(schema::lines::table)
-            .values(&lines)
-            .execute(tx)
-    })?;
+    for result in parser.parse() {
+        log::info!(
+            "Inserting 1 file, {} lines, {} objects into the database",
+            result.lines.len(),
+            result.objects.len(),
+        );
+        let objects: Vec<Object> = result.objects.into_iter().collect();
+        conn.transaction(|tx| {
+            diesel::insert_or_ignore_into(schema::files::table)
+                .values(result.file)
+                .execute(tx)?;
+            diesel::insert_or_ignore_into(schema::objects::table)
+                .values(objects)
+                .execute(tx)?;
+            diesel::insert_into(schema::lines::table)
+                .values(result.lines)
+                .execute(tx)
+        })?;
+    }
 
-    log::info!(
-        "Inserted {} files, {} lines, {} objects into the database.",
-        files.len(),
-        lines.len(),
-        objects.len()
-    );
+    log::info!("Parsing complete");
 
     Ok(conn)
 }

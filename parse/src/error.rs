@@ -16,8 +16,6 @@ pub enum Error {
     Semver(#[from] semver::Error),
     #[error("chrono parse Error {0}")]
     ChronoParse(#[from] chrono::ParseError),
-    #[error("chrono parse Error {0}")]
-    ChronoParsePlus(chrono::ParseError, String),
     #[error("Error {0}")]
     Boxed(#[from] Box<dyn std::error::Error + Send + Sync>),
     #[error("YAML Error {0}")]
@@ -34,10 +32,20 @@ pub enum Error {
     NoSuchLevel(String),
     #[error("No matches")]
     NoMatches,
-    #[error("No object in line \"{0}\"")]
-    NoObject(String),
+    #[error("No event in line \"{0}\"")]
+    NoEvent(String),
+    #[error("No parseable timestamp in line \"{0}\"")]
+    NoTimestamp(String),
     #[error("Unknown object '{0}'")]
     UnknownObject(String),
+    #[error("No domain in line \"{0}\"")]
+    NoDomain(String),
+    #[error("Unknown domain \"{0}\"")]
+    UnknownDomain(String),
+    #[error("No object in line \"{0}\"")]
+    NoObject(String),
+    #[error("No such value {0} in enum {1}")]
+    InvalidEnumValue(i32, &'static str),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

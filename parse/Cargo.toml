@@ -8,18 +8,30 @@ repository.workspace = true
 
 [dependencies]
 chrono.workspace = true
-diesel = { workspace = true, features = ["sqlite", "chrono", "serde_json", "returning_clauses_for_sqlite_3_35"] }
+diesel = { workspace = true, features = [
+    "sqlite",
+    "chrono",
+    "serde_json",
+    "returning_clauses_for_sqlite_3_35",
+] }
 diesel_migrations.workspace = true
 futures.workspace = true
 lazy_static.workspace = true
 log.workspace = true
 rangemap.workspace = true
+rayon.workspace = true
 regex.workspace = true
 semver.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_yaml.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["fs", "rt", "macros"] }
-tokio-stream = { workspace = true, features = ["fs", "io-util"] }
-tokio-util = { workspace = true, features = ["io"] }
+
+[build-dependencies]
+serde.workspace = true
+serde_yaml.workspace = true
+semver.workspace = true
+regex.workspace = true
+
+[dev-dependencies]
+env_logger.workspace = true

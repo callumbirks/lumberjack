@@ -4,5 +4,3 @@ DROP TABLE lines;
 DROP TABLE files;
 
 DROP TABLE objects;
-
-DROP TABLE repls;

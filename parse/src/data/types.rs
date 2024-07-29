@@ -1,7 +1,9 @@
-pub mod repl;
+pub mod event;
+mod object;
 
 use crate::data::util::{diesel_tosql_transmute, impl_display_debug};
 use crate::schema::{files, lines, objects};
+use crate::Error;
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use diesel::{sql_types, AsExpression, FromSqlRow};
@@ -12,18 +14,19 @@ use std::str::FromStr;
 #[derive(
     Insertable, Serialize, Identifiable, Queryable, Selectable, Associations, Debug, Clone,
 )]
-#[diesel(primary_key(level, line_num))]
+#[diesel(primary_key(file_id, line_num))]
 #[diesel(belongs_to(Object))]
 #[diesel(belongs_to(File))]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct Line {
-    pub level: Level,
-    pub line_num: i64,
-    pub timestamp: NaiveDateTime,
-    pub message: String,
-    pub event_type: EventType,
-    pub object_id: i32,
     pub file_id: i32,
+    pub line_num: i64,
+    pub level: Level,
+    pub timestamp: NaiveDateTime,
+    pub domain: Domain,
+    pub event_type: EventType,
+    pub event_data: Option<String>,
+    pub object_id: i32,
 }
 
 #[derive(
@@ -32,7 +35,9 @@ pub struct Line {
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct Object {
     pub id: i32,
-    pub ty: ObjectType,
+    pub object_type: ObjectType,
+    // JSON
+    pub data: Option<String>,
 }
 
 #[derive(Insertable, Identifiable, Queryable, Selectable, Serialize, Debug, Clone)]
@@ -40,15 +45,30 @@ pub struct Object {
 pub struct File {
     pub id: i32,
     pub path: String,
-    pub level: Level,
+    pub level: Option<Level>,
     pub timestamp: NaiveDateTime,
 }
 
-#[derive(Debug, Clone)]
-pub enum ObjectExtra {
-    None,
-    Repl(Box<repl::Repl>),
+#[derive(Serialize, PartialEq, Eq, Debug, Clone)]
+pub struct Event {
+    pub event_type: EventType,
+    pub data: Option<String>,
 }
+
+#[derive(AsExpression, FromSqlRow, Serialize, Hash, Debug, Copy, Clone, Eq, PartialEq)]
+#[repr(i32)]
+#[diesel(sql_type = sql_types::Integer)]
+pub enum Domain {
+    Actor,
+    BLIP,
+    DB,
+    Sync,
+    Query,
+    WS,
+}
+
+impl_display_debug!(Domain);
+diesel_tosql_transmute!(Domain, i32, sql_types::Integer);
 
 #[derive(AsExpression, FromSqlRow, Serialize, Hash, Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(i32)]
@@ -93,36 +113,49 @@ impl_display_debug!(ObjectType);
 diesel_tosql_transmute!(ObjectType, i32, sql_types::Integer);
 
 #[derive(AsExpression, FromSqlRow, Serialize, Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(i16)]
+#[repr(i32)]
 #[diesel(sql_type = sql_types::Integer)]
 pub enum EventType {
     None,
-    Common(CommonEvent),
-    DB(DBEvent),
+    // Common Events
+    Created,
+    Destroyed,
+    // Database Events
+    DBOpening,
+    DBUpgrade,
+    DBTxBegin,
+    DBTxCommit,
+    DBTxAbort,
+    DBSavedRev,
+    // Query Events
+    QueryCreateIndex,
+    // Subrepl Events
+    SubreplStart,
+    PullerHandledRevs,
+    // BLIP Events
+    BLIPSendRequestStart,
+    BLIPQueueRequest,
+    BLIPWSWriteStart,
+    BLIPSendFrame,
+    BLIPSendRequestEnd,
+    BLIPWSWriteEnd,
+    BLIPReceiveFrame,
+    // Housekeeper Events
+    HousekeeperMonitoring,
+    // Repl Events
+    ReplConflictScan,
+    ReplConnected,
+    ReplActivityUpdate,
+    ReplStatusUpdate,
+    ReplStart,
 }
 
 diesel_tosql_transmute!(EventType, i32, sql_types::Integer);
-
-#[derive(Serialize, Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(i16)]
-pub enum CommonEvent {
-    Created,
-    Destroyed,
-}
-
-#[derive(Serialize, Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(i16)]
-pub enum DBEvent {
-    Opening,
-    TxBegin,
-    TxCommit,
-    TxEnd,
-    TxAbort,
-}
+impl_display_debug!(EventType);
 
 impl Object {
     pub fn name(&self) -> String {
-        format!("{}#{}", self.ty, self.id)
+        format!("{}#{}", self.object_type, self.id)
     }
 }
 
@@ -164,6 +197,50 @@ impl FromStr for Level {
             "verbose" => Ok(Self::Verbose),
             "error" => Ok(Self::Error),
             _ => Err(crate::Error::NoSuchLevel(s.to_string())),
+        }
+    }
+}
+
+impl FromStr for ObjectType {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "DB" => Ok(ObjectType::DB),
+            "Repl" | "repl" => Ok(ObjectType::Repl),
+            "Pusher" => Ok(ObjectType::Pusher),
+            "Puller" => Ok(ObjectType::Puller),
+            "Inserter" => Ok(ObjectType::Inserter),
+            "BLIPIO" => Ok(ObjectType::BLIPIO),
+            "IncomingRev" => Ok(ObjectType::IncomingRev),
+            "Connection" => Ok(ObjectType::Connection),
+            "C4SocketImpl" => Ok(ObjectType::C4SocketImpl),
+            "RevFinder" => Ok(ObjectType::RevFinder),
+            "ReplicatorChangesFeed" => Ok(ObjectType::ReplicatorChangesFeed),
+            "QueryEnum" => Ok(ObjectType::QueryEnum),
+            "C4Replicator" => Ok(ObjectType::C4Replicator),
+            "Housekeeper" => Ok(ObjectType::Housekeeper),
+            "Shared" => Ok(ObjectType::Shared),
+            "CollectionImpl" => Ok(ObjectType::CollectionImpl),
+            "Query" => Ok(ObjectType::Query),
+            "DBAccess" => Ok(ObjectType::DBAccess),
+            _ => Err(Error::UnknownObject(s.to_string())),
+        }
+    }
+}
+
+impl FromStr for Domain {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Actor" => Ok(Domain::Actor),
+            "BLIP" => Ok(Domain::BLIP),
+            "DB" => Ok(Domain::DB),
+            "Sync" => Ok(Domain::Sync),
+            "Query" => Ok(Domain::Query),
+            "WS" => Ok(Domain::WS),
+            _ => Err(Error::UnknownDomain(s.to_string())),
         }
     }
 }

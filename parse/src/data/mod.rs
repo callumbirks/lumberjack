@@ -1,6 +1,4 @@
 mod database;
-#[cfg(test)]
-mod test;
 mod types;
 mod util;
 

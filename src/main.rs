@@ -2,7 +2,6 @@
 mod xlsx;
 
 use clap::Parser;
-use log::LevelFilter;
 use std::path::PathBuf;
 use thiserror::Error;
 
@@ -29,12 +28,11 @@ enum Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     env_logger::builder().format_timestamp_millis().init();
     let args = Args::parse();
 
-    let conn = lumberjack_parse::parse(&args.input).execute().await?;
+    let conn = lumberjack_parse::parse(&args.input).execute()?;
 
     #[cfg(feature = "xlsx")]
     if args.out_xlsx {

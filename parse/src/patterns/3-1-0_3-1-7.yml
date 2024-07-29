@@ -1,0 +1,104 @@
+# Captures:
+#   ver: version / release (i.e. "3.1.1")
+#   plat: platform (i.e. ".NET"
+#   os: OS (i.e. "Microsoft Windows 10.0.22621")
+#   build: build number (i.e. "3" for 3.1.1-3)
+#   commit: combined commit string (i.e. "d8a2f91+3050eba")
+version:
+  - "---- CouchbaseLite/(?<ver>\\d+.\\d+.\\d+).+\\((?<plat>\\S+); (?<os>.*)\\) Build/(?<build>\\d+) LiteCore/\\d+.\\d+.\\d+ \\(\\d+\\) Commit/(?<commit>\\S+) ----"
+  - "Initialized: CouchbaseLite (?<plat>\\S+) v(?<ver>\\d+.\\d+.\\d+)-(?<build>\\d+).*Commit/(?<commit>\\S+).* on \\S+; (?<os>.*);"
+# Captures:
+#   ts: Either timestamp or full datetime (i.e. "23:39:11.925267" or "2024-05-21T23:39:11.925267")
+timestamp:
+  - "(?<ts>\\d{2}:\\d{2}:\\d{2}.\\d+)\\|"
+
+timestamp_formats:
+  - "%H:%M:%S.%6f"
+
+patterns:
+  # Captures
+  #   obj: Object name (i.e. "Repl")
+  #   id: Object ID
+  object: ": \\{(?<obj>\\w+)#(?<id>\\d+)\\}"
+  # Captures
+  #   domain: Log Domain
+  domain: "\\d+\\| \\[(?<domain>\\w+)\\]: "
+  db_open: "Opening database"
+  # Captures
+  #   old_ver: Old schema version
+  #   new_ver: New schema version
+  db_upgrade: "SCHEMA UPGRADE \\((?<old_ver>\\d+)-(?<new_ver>\\d+)\\)"
+  db_tx_begin: "begin transaction"
+  db_tx_commit: "commit transaction"
+  db_tx_abort: "abort transaction"
+  # Captures
+  #   doc_id: Document ID
+  #   rev_id: Revision ID
+  #   sequence: Sequence number
+  db_saved_rev: "Saved '(?<doc_id>\\S+)' rev (?<rev_id>\\S+) as seq (?<sequence>\\d+)"
+  housekeeper_monitor: "Housekeeper: opening background database"
+  # Captures
+  #    num_conflicts: Number of conflicts
+  repl_conflict_scan: "Found (?<num_conflicts>\\d+) conflicted docs in"
+  repl_connected: "Connected!"
+  # Captures
+  #    activity: Activity level (string)
+  #    connection_state: BLIP Connection state (enum discriminant)
+  #    saving_checkpoint: Whether the repl needs to save a checkpoint (bool represented as 0 or 1)
+  repl_activity_update: "activityLevel=(?<activity>\\S+): connectionState=(?<connection_state>\\d), savingChkpt=(?<saving_checkpoint>\\d+)"
+  # Captures
+  #   push_status: Push status (string)
+  #   pull_status: Pull status (string)
+  #   completed: Number of completed items
+  #   total: Total number of items
+  #   doc_count: Number of documents
+  repl_status_update: "pushStatus=(?<push_status>\\S+), pullStatus=(?<pull_status>\\S+), progress=(?<completed>\\d+)/(?<total>\\d+)/(?<doc_count>\\d+)"
+  # Captures
+  #   mode: Replication mode (string, "push" or "pull")
+  #   sequence: Sequence number
+  subrepl_start: "Starting (?<mode>\\w+) from remote seq '(?<sequence>\\d+)'"
+  # Captures
+  #   handled: Number of handled revisions
+  #   pending: Number of pending revisions
+  puller_handled_revs: "(?<handled>\\d+) revs were provisionally handled; down to (?<pending>\\d+) revs"
+  # Captures
+  #   doc_id: Document ID
+  #   collection: Either 'scope.collection', or '_default' for default collection
+  #   rev_id: Revision ID
+  #   rev_history: Revision history
+  #   sequence: Sequence number
+  inserter_insert_rev: "\\{'(?<doc_id>\\S+) \\((?<collection>\\S+)\\)' #(?<rev_id>\\S+) <- (?<rev_history>\\S+)\\} seq (?<sequence>\\d+)"
+  # Captures
+  #   request: Request type (string)
+  #   id: Request ID
+  blip_send_request_start: "Sending '(?<request>\\w+)' REQ #(?<id>\\d+)"
+  # Captures
+  #   id: Request ID
+  blip_queue_request: "Requeuing REQ #(?<id>\\d+)"
+  blip_ws_write_start: "Starting writeToWebSocket loop..."
+  # Captures
+  #   id: Request ID
+  #   message_type: Message type (string, "REQ", "RES", "ERR")
+  #   more_coming: Whether more frames are coming (char represented as "M" or "-")
+  #   urgent: Whether the message is urgent (char represented as "U" or "-")
+  #   no_reply: Whether the message expects no reply (char represented as "N" or "-")
+  #   compressed: Whether the message is compressed (char represented as "C" or "-")
+  #   from_byte: Starting byte
+  #   to_byte: Ending byte
+  blip_send_frame: "Sending frame: (?<message_type>\\w+) #(?<id>\\d+) (?<more_coming>M|-)(?<urgent>U|-)(?<no_reply>N|-)(?<compressed>C|-), bytes (?<from_byte>\\d+)--(?<to_byte>\\d+)"
+  # Captures
+  #   id: Request ID
+  blip_send_request_end: "Finished sending REQ #(?<id>\\d+)"
+  # Captures
+  #   bytes: Number of bytes written
+  #   writeable: Whether the WebSocket is writeable (bool represented as 0 or 1)
+  blip_ws_write_end: "...Wrote (?<bytes>\\d+) bytes to WebSocket \\(writeable=(?<writeable>\\d)\\)"
+  # Captures
+  #   message_type: Message type (string, "REQ", "RES", "ERR")
+  #   id: Message ID
+  #   more_coming: Whether more frames are coming (char represented as "M" or "-")
+  #   urgent: Whether the message is urgent (char represented as "U" or "-")
+  #   no_reply: Whether the message expects no reply (char represented as "N" or "-")
+  #   compressed: Whether the message is compressed (char represented as "C" or "-")
+  #   length: Length of the message (in bytes)
+  blip_receive_frame: "Received frame: (?<message_type>\\w+) #(?<id>\\d+) (?<more_coming>M|-)(?<urgent>U|-)(?<no_reply>N|-)(?<compressed>C|-), length\\s+(?<length>\\d+)"

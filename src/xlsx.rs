@@ -1,44 +1,41 @@
 use std::path::Path;
 
 use diesel::{QueryDsl, RunQueryDsl, SelectableHelper, SqliteConnection};
-use rust_xlsxwriter::{Format, FormatAlign, FormatBorder, Workbook};
+use rust_xlsxwriter::{Format, Workbook};
 use serde::Serialize;
+
+mod types;
 
 pub fn write(path: impl AsRef<Path>, mut db: SqliteConnection) -> crate::Result<()> {
     log::info!("Writing DB to XLSX file...");
 
     let mut writer = {
-        let mut workbook = Workbook::new();
+        let workbook = Workbook::new();
 
         let bold_format = Format::new().set_bold();
-        let decimal_format = Format::new().set_num_format("0.000");
-        let date_format = Format::new().set_num_format("yyyy-mm-dd");
-        let merge_format = Format::new()
-            .set_border(FormatBorder::Thin)
-            .set_align(FormatAlign::Center);
 
         XlsxWriter {
             workbook,
             bold_format,
-            decimal_format,
-            date_format,
-            merge_format,
         }
     };
 
     let lines = lumberjack_parse::schema::lines::table
         .select(lumberjack_parse::data::Line::as_select())
         .load(&mut db)?;
+    let lines: Vec<types::Line> = lines.into_iter().map(types::Line::from).collect();
     writer.write_worksheet_serializable("Lines", &lines)?;
 
     let objects = lumberjack_parse::schema::objects::table
         .select(lumberjack_parse::data::Object::as_select())
         .load(&mut db)?;
+    let objects: Vec<types::Object> = objects.into_iter().map(types::Object::from).collect();
     writer.write_worksheet_serializable("Objects", &objects)?;
 
     let files = lumberjack_parse::schema::files::table
         .select(lumberjack_parse::data::File::as_select())
         .load(&mut db)?;
+    let files: Vec<types::File> = files.into_iter().map(types::File::from).collect();
     writer.write_worksheet_serializable("Files", &files)?;
 
     let path_str = path.as_ref().to_string_lossy();
@@ -50,9 +47,6 @@ pub fn write(path: impl AsRef<Path>, mut db: SqliteConnection) -> crate::Result<
 struct XlsxWriter {
     workbook: Workbook,
     bold_format: Format,
-    decimal_format: Format,
-    date_format: Format,
-    merge_format: Format,
 }
 
 impl XlsxWriter {
