@@ -1,6 +1,7 @@
 use std::{
     collections::HashSet,
     ffi::OsStr,
+    io::Read,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -11,8 +12,7 @@ use util::match_event;
 
 use crate::{
     data::{event::*, Domain, Event, File, Level, Line, Object, ObjectType},
-    util::read_lines,
-    Error, Result,
+    decoder, Error, Result,
 };
 
 pub struct Parser {
@@ -31,16 +31,10 @@ impl Parser {
     pub fn new(path: &Path) -> Result<Self> {
         let files = Self::find_log_files(path)?;
         if files.is_empty() {
-            log::error!("No valid log files found at path '{:?}'!", path);
+            log::error!("No valid log files found at path {:?}!", path);
             return Err(Error::NotLogs(path.to_path_buf()));
         }
-        let (patterns, version) =
-            regex_patterns::patterns_for_file(&files[0]).map_err(|err| match err {
-                regex_patterns::Error::Io(err) => Error::Io(err),
-                regex_patterns::Error::Semver(err) => Error::Semver(err),
-                regex_patterns::Error::UnsupportedVersion(ver) => Error::UnsupportedVersion(ver),
-                regex_patterns::Error::NoMatches => Error::NoMatches,
-            })?;
+        let (patterns, version) = regex_patterns::patterns_for_file(&files[0])?;
         Ok(Self {
             files,
             patterns,
@@ -162,7 +156,7 @@ impl Parser {
 
     fn find_log_files(path: &Path) -> Result<Vec<PathBuf>> {
         log::debug!(
-            "Searching for valid log files in file or directory '{:?}'",
+            "Searching for valid log files in file or directory {:?}",
             path
         );
         let files = if path.is_dir() {
@@ -331,6 +325,15 @@ fn parse_event(
             BLIPWSWriteEndEvent,
             BLIPReceiveFrameEvent,
         ]
+    }
+}
+
+pub(crate) fn read_lines(file_path: &Path) -> Result<Vec<String>> {
+    if decoder::is_encoded(file_path)? {
+        decoder::decode_lines(file_path)
+    } else {
+        let contents = std::fs::read_to_string(file_path)?;
+        Ok(contents.lines().into_iter().map(str::to_string).collect())
     }
 }
 

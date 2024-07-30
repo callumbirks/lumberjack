@@ -1,4 +1,5 @@
 pub mod data;
+pub(crate) mod decoder;
 mod error;
 mod parser;
 pub mod schema;

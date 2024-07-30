@@ -11,16 +11,20 @@ version:
 # Captures:
 #   ts: Either timestamp or full datetime (i.e. "23:39:11.925267" or "2024-05-21T23:39:11.925267")
 timestamp:
-  - "(?<ts>\\d{2}:\\d{2}:\\d{2}.\\d+)\\|"
+  - "(?<ts>\\d{2}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.\\d+)"
 timestamp_formats:
-  - "%H:%M:%S.%6f"
+  - "%Y-%m-%dT%H:%M:%S.%6f"
 # Captures
 #   obj: Object name (i.e. "Repl")
 #   id: Object ID
-object: ": \\{(?<obj>\\w+)#(?<id>\\d+)\\}"
+#   parents: Parent objects string (i.e. "Repl#1/Pusher#2/")
+object: "Obj=/(apiTest/)?(?<parents>(\\w+#\\d+/)*)(?<obj>\\w+)#(?<id>\\d+)/"
 # Captures
 #   domain: Log Domain
-domain: "\\d+\\| \\[(?<domain>\\w+)\\]: "
+domain: "\\d{2}:\\d{2}:\\d{2}.\\d+ (?<domain>\\S+) "
+# Captures:
+#   level: Log level (i.e. "Info")
+level: "\\d{2}:\\d{2}:\\d{2}.\\d+ \\S+ (?<level>\\S+) "
 
 events:
   db_open: "Opening database"

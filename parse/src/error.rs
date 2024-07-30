@@ -46,6 +46,10 @@ pub enum Error {
     NoObject(String),
     #[error("No such value {0} in enum {1}")]
     InvalidEnumValue(i32, &'static str),
+    #[error("Invalid binary logs: '{0}' at {1}")]
+    InvalidBinaryLogs(String, u64),
+    #[error("Invalid varint in binary logs")]
+    InvalidVarint,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

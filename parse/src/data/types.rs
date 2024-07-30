@@ -74,11 +74,11 @@ diesel_tosql_transmute!(Domain, i32, sql_types::Integer);
 #[repr(i32)]
 #[diesel(sql_type = sql_types::Integer)]
 pub enum Level {
+    Error,
+    Warning,
     Info,
     Verbose,
     Debug,
-    Warn,
-    Error,
 }
 
 impl_display_debug!(Level);
@@ -192,7 +192,7 @@ impl FromStr for Level {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "info" => Ok(Self::Info),
-            "warning" => Ok(Self::Warn),
+            "warning" => Ok(Self::Warning),
             "debug" => Ok(Self::Debug),
             "verbose" => Ok(Self::Verbose),
             "error" => Ok(Self::Error),

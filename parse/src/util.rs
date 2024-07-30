@@ -13,8 +13,3 @@ macro_rules! match_contains {
         }
     }
 }
-
-pub(crate) fn read_lines(file_path: impl AsRef<Path>) -> Result<Vec<String>> {
-    let contents = std::fs::read_to_string(file_path.as_ref())?;
-    Ok(contents.lines().into_iter().map(str::to_string).collect())
-}

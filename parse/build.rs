@@ -27,32 +27,22 @@ fn main() {
         "use rangemap::RangeMap;\n",
         "use regex::Regex;\n",
         "use semver::Version;\n",
-        "use std::path::Path;\n\n"
+        "use std::path::Path;\n",
+        "use crate::parser::read_lines;\n",
+        "use crate::{Error, Result};\n\n",
     );
 
     write_out!(
         out_file_writer,
-        "#[derive(Debug)]\n",
-        "pub enum Error {\n",
-        "    Io(std::io::Error),\n",
-        "    Semver(semver::Error),\n",
-        "    UnsupportedVersion(Version),\n",
-        "    NoMatches,\n",
-        "}\n\n",
-    );
-
-    write_out!(
-        out_file_writer,
-        "pub fn patterns_for_version(version: &Version) -> Result<Patterns, Error> {\n",
+        "pub fn patterns_for_version(version: &Version) -> Result<Patterns> {\n",
         "    PATTERNS_MAP.get(version).map(|p| Patterns::from(*p)).ok_or(Error::UnsupportedVersion(version.clone()))\n",
         "}\n\n"
     );
 
     write_out!(
         out_file_writer,
-        "pub fn patterns_for_file(path: &Path) -> Result<(Patterns, Version), Error> {\n",
-        "    let file_contents = std::fs::read_to_string(path).map_err(|err| Error::Io(err))?;\n",
-        "    let lines = file_contents.lines().collect::<Vec<_>>();\n",
+        "pub fn patterns_for_file(path: &Path) -> Result<(Patterns, Version)> {\n",
+        "    let lines = read_lines(path)?;",
         "    for (_, patterns) in PATTERNS_MAP.iter() {\n",
         "        let versions_re = patterns\n",
         "            .version\n",
@@ -70,7 +60,14 @@ fn main() {
         "                    panic!(\"YAML 'version' spec is missing 'ver' capture!\");\n",
         "                };\n",
         "\n",
-        "                let version = Version::parse(version.as_str()).map_err(|err| Error::Semver(err))?;\n",
+        "                // TODO: TEMP FIX FOR CORE CPPTEST LOGS\n",
+        "                let version_str = if version.as_str() == \"3.2\" {\n",
+        "                    \"3.2.0\"\n",
+        "                } else {\n",
+        "                    version.as_str()\n",
+        "                };\n",
+        "\n",
+        "                let version = Version::parse(version_str).map_err(|err| Error::Semver(err))?;\n",
         "                return patterns_for_version(&version).map(|p| (p, version));\n",
         "            }\n",
         "        }\n",
@@ -134,9 +131,11 @@ fn main() {
         "    pub version: Vec<&'static str>,\n",
         "    pub timestamp: Vec<&'static str>,\n",
         "    pub timestamp_formats: Vec<&'static str>,\n",
+        "    pub object: &'static str,\n",
+        "    pub domain: &'static str,\n",
     );
 
-    for (key, _) in &formats.first_key_value().unwrap().1.patterns.patterns {
+    for (key, _) in &formats.first_key_value().unwrap().1.patterns.events {
         write_out!(out_file_writer, "    pub {}: &'static str,\n", args!(key));
     }
 
@@ -148,10 +147,12 @@ fn main() {
         "pub struct Patterns {\n",
         "    pub version: Vec<Regex>,\n",
         "    pub timestamp: Vec<Regex>,\n",
-        "    pub timestamp_formats: Vec<&'static str>,\n"
+        "    pub timestamp_formats: Vec<&'static str>,\n",
+        "    pub object: Regex,\n",
+        "    pub domain: Regex,\n",
     );
 
-    for (key, _) in &formats.first_key_value().unwrap().1.patterns.patterns {
+    for (key, _) in &formats.first_key_value().unwrap().1.patterns.events {
         expected_keys.insert(key.clone());
         write_out!(out_file_writer, "    pub {}: Regex,\n", args!(key));
     }
@@ -176,9 +177,11 @@ fn main() {
         "            version: patterns.version.iter().map(|v| Regex::new(v).unwrap()).collect(),\n",
         "            timestamp: patterns.timestamp.iter().map(|t| Regex::new(t).unwrap()).collect(),\n",
         "            timestamp_formats: patterns.timestamp_formats.clone(),\n",
+        "            object: Regex::new(patterns.object).unwrap(),\n",
+        "            domain: Regex::new(patterns.domain).unwrap(),\n",
     );
 
-    for (key, _) in &formats.first_key_value().unwrap().1.patterns.patterns {
+    for (key, _) in &formats.first_key_value().unwrap().1.patterns.events {
         write_out!(
             out_file_writer,
             "            {}: Regex::new(patterns.{}).unwrap(),\n",
@@ -197,13 +200,13 @@ fn main() {
     ) in formats.iter().skip(1)
     {
         // Verify that the keys are the same
-        for (key, _) in &patterns.patterns {
+        for (key, _) in &patterns.events {
             if !expected_keys.contains(key) {
                 panic!("File '{}' has unexpected key '{}'. Make sure all yaml files contain the same keys!", &file_name, key);
             }
         }
         for key in &expected_keys {
-            if !patterns.patterns.contains_key(key) {
+            if !patterns.events.contains_key(key) {
                 panic!("File '{}' is missing expected key '{}'. Make sure all yaml files contain the same keys!", &file_name, key);
             }
         }
@@ -265,7 +268,14 @@ fn main() {
 
         write_out!(out_file_writer, "        ],\n");
 
-        for (key, value) in &patterns.patterns {
+        write_out!(
+            out_file_writer,
+            "        object: r#\"{}\"#,\n",
+            "        domain: r#\"{}\"#,\n",
+            args!(patterns.object, patterns.domain)
+        );
+
+        for (key, value) in &patterns.events {
             write_out!(
                 out_file_writer,
                 "        {}: r#\"{}\"#,\n",
@@ -312,7 +322,10 @@ struct Patterns {
     version: Vec<String>,
     timestamp: Vec<String>,
     timestamp_formats: Vec<String>,
-    patterns: BTreeMap<String, String>,
+    object: String,
+    domain: String,
+    level: Option<String>,
+    events: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
