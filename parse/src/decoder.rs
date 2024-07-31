@@ -1,6 +1,5 @@
 use core::fmt;
 use std::{
-    backtrace::BacktraceStatus,
     collections::BTreeMap,
     io::{BufRead, BufReader, Read, Seek},
     path::Path,

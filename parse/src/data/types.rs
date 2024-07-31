@@ -1,5 +1,3 @@
-mod object;
-
 use crate::data::util::{diesel_tosql_transmute, impl_display_debug};
 use crate::parser::regex_patterns::LevelNames;
 use crate::schema::{files, lines, objects};

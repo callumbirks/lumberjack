@@ -7,54 +7,17 @@ pub mod util;
 
 use crate::data::{open_db, Object};
 use crate::parser::Parser;
-use diesel::{Connection, RunQueryDsl, SqliteConnection};
+use diesel::{Connection, RunQueryDsl};
 pub use error::{Error, Result};
-use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::Path;
 
-#[derive(Debug, Clone)]
-pub struct ParserOptions<'a> {
-    in_path: &'a Path,
-    out_path: Option<&'a Path>,
-}
+/// Parse logs from the given `in_path` into a SQLite database at the given `out_path`.
+pub fn parse(in_path: &Path, out_path: &Path) -> Result<()> {
+    log::info!("Parsing logs at {:?}", in_path);
 
-impl<'a> ParserOptions<'a> {
-    fn new(in_path: &'a Path) -> ParserOptions<'a> {
-        Self {
-            in_path,
-            out_path: None,
-        }
-    }
+    let mut conn = open_db(out_path, true)?;
 
-    pub fn out_db(mut self, out_path: &'a Path) -> ParserOptions<'a> {
-        self.out_path = Some(out_path);
-        self
-    }
-
-    pub fn execute(self) -> Result<SqliteConnection> {
-        _parse(self)
-    }
-}
-
-pub fn parse(in_path: &Path) -> ParserOptions {
-    ParserOptions::new(in_path)
-}
-
-/// Parse logs from the given path (either a file or a directory) and return the populated database.
-fn _parse<'a>(options: ParserOptions<'a>) -> Result<SqliteConnection> {
-    log::info!("Starting parse with options: {:?}", &options);
-
-    let hash = {
-        let mut hasher = DefaultHasher::new();
-        options.in_path.hash(&mut hasher);
-        hasher.finish()
-    };
-
-    // The database path is the hash of the log path in hexadecimal (with 'sqlite' extension)
-    let db_path = format!("{hash:x}.sqlite");
-    let mut conn = open_db(db_path, true)?;
-
-    let parser = Parser::new(options.in_path)?;
+    let parser = Parser::new(in_path)?;
 
     let mut total_files = 0_u64;
     let mut total_lines = 0_u64;
@@ -90,5 +53,7 @@ fn _parse<'a>(options: ParserOptions<'a>) -> Result<SqliteConnection> {
         total_objects
     );
 
-    Ok(conn)
+    log::info!("Wrote parsed data to {:?}", out_path);
+
+    Ok(())
 }

@@ -1,6 +1,3 @@
-use crate::Result;
-use std::path::Path;
-
 /// Used to neatly match across `str::contains`
 #[macro_export]
 macro_rules! match_contains {

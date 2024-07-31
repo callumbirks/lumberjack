@@ -12,17 +12,6 @@ where
     serializer.serialize_str(&t.to_string())
 }
 
-fn option_to_string<S, T>(t: &Option<T>, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-    T: ToString,
-{
-    match t {
-        Some(t) => serializer.serialize_str(&t.to_string()),
-        None => serializer.serialize_none(),
-    }
-}
-
 #[derive(Serialize)]
 pub struct File {
     id: i32,
