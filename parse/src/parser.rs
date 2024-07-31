@@ -5,7 +5,7 @@ use std::{
     str::FromStr,
 };
 
-use chrono::{DateTime, NaiveDateTime, NaiveTime};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, TimeDelta};
 use rayon::prelude::*;
 use regex::Regex;
 use regex_patterns::LevelNames;
@@ -95,22 +95,54 @@ impl Parser {
             timestamp: timestamp.unwrap(),
         };
 
-        let (lines, objects): (Vec<Line>, HashSet<Object>) = lines
-            .into_par_iter()
-            .enumerate()
-            .map(|(i, line)| {
-                let res = self.parse_line(&line, i as u64, &file);
+        let (lines, objects): (Vec<Line>, HashSet<Object>) =
+            if self.patterns.platform.full_timestamp {
+                // For full timestamp, we can parse all lines in parallel
+                lines
+                    .into_par_iter()
+                    .enumerate()
+                    .map(|(i, line)| {
+                        let res = self.parse_line(&line, i as u64, &file, file.timestamp.date());
 
-                let Ok((line, object)) = res else {
-                    let err = res.unwrap_err();
-                    log::trace!("Line parsing error: {}", &err);
-                    return Err(err);
-                };
+                        let Ok((line, object)) = res else {
+                            let err = res.unwrap_err();
+                            log::trace!("Line parsing error: {}", &err);
+                            return Err(err);
+                        };
 
-                Ok((line, object))
-            })
-            .filter_map(|res| res.ok())
-            .unzip();
+                        Ok((line, object))
+                    })
+                    .filter_map(|res| res.ok())
+                    .unzip()
+            } else {
+                let mut additional_days = TimeDelta::days(0);
+                lines
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, line)| {
+                        let res = self.parse_line(
+                            &line,
+                            i as u64,
+                            &file,
+                            file.timestamp.date() + additional_days,
+                        );
+
+                        let Ok((mut line, object)) = res else {
+                            let err = res.unwrap_err();
+                            log::trace!("Line parsing error: {}", &err);
+                            return Err(err);
+                        };
+
+                        if line.timestamp - file.timestamp < additional_days {
+                            additional_days += TimeDelta::days(1);
+                            line.timestamp += TimeDelta::days(1);
+                        }
+
+                        Ok((line, object))
+                    })
+                    .filter_map(|res| res.ok())
+                    .unzip()
+            };
 
         log::debug!(
             "Parsed {}, skipped {} lines from {}",
@@ -126,7 +158,13 @@ impl Parser {
         })
     }
 
-    fn parse_line(&self, line: &str, line_num: u64, file: &File) -> Result<(Line, Object)> {
+    fn parse_line(
+        &self,
+        line: &str,
+        line_num: u64,
+        file: &File,
+        base_date: NaiveDate,
+    ) -> Result<(Line, Object)> {
         let domain = parse_domain(line, &self.patterns.platform.domain)?;
 
         let object = parse_object(line, &self.patterns.object)?;
@@ -139,7 +177,7 @@ impl Parser {
         )?;
 
         let timestamp = match timestamp {
-            Timestamp::Partial(ts) => file.timestamp.date().and_time(ts),
+            Timestamp::Partial(ts) => base_date.and_time(ts),
             Timestamp::Full(ts) => ts,
         };
 
