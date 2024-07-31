@@ -8,6 +8,7 @@ platforms:
   # Vanilla
   - version: "---- CouchbaseLite/(?<ver>\\d+.\\d+.\\d+).+\\((?<plat>\\S+); (?<os>.*)\\) Build/(?<build>\\d+) LiteCore/\\d+.\\d+.\\d+ \\(\\d+\\) Commit/(?<commit>\\S+) ----"
     timestamp: "(?<ts>\\d{2}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.\\d+)"
+    full_timestamp: true
     timestamp_formats:
       - "%Y-%m-%dT%H:%M:%S.%6f"
     domain: "\\d{2}:\\d{2}:\\d{2}.\\d+ (?<domain>\\S+) "
@@ -21,6 +22,7 @@ platforms:
   # Android Logcat
   - version: "Initialized: CouchbaseLite (?<plat>\\S+) v(?<ver>\\d+.\\d+.\\d+)-(?<build>\\d+).*Commit/(?<commit>\\S+).* on \\S+; (?<os>.*);"
     timestamp: "(?<ts>\\d{2}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.\\d+)"
+    full_timestamp: true
     timestamp_formats:
       - "%Y-%m-%dT%H:%M:%S.%6f"
     domain: "\\d{2}:\\d{2}:\\d{2}.\\d+ (?<domain>\\S+) "
@@ -34,6 +36,7 @@ platforms:
   # LiteCore CppTest binary logs
   - version: "---- .*/(?<ver>\\d+\\.\\d+(.\\d+)?)"
     timestamp: "(?<ts>\\d{2}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.\\d+)"
+    full_timestamp: true
     timestamp_formats:
       - "%Y-%m-%dT%H:%M:%S.%6f"
     domain: "\\d{2}:\\d{2}:\\d{2}.\\d+ (?<domain>\\S+) "

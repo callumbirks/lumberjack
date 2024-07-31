@@ -39,7 +39,3 @@ jobs:
         run: |
           cargo check
           cargo test --all
-
-      - name: Build
-        working-directory: ${{ github.workspace }}
-        run: cargo build --release

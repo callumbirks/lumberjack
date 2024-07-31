@@ -110,9 +110,10 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
         "struct PlatformPatternStrings {\n",
         "    pub version: &'static str,\n",
         "    pub timestamp: &'static str,\n",
+        "    pub full_timestamp: bool,\n",
         "    pub timestamp_formats: Vec<&'static str>,\n",
         "    pub domain: &'static str,\n",
-        "    pub level: &'static str,\n",
+        "    pub level: Option<&'static str>,\n",
         "    pub level_names: LevelNames,\n",
         "}\n\n"
     );
@@ -150,9 +151,10 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
         "pub struct PlatformPatterns {\n",
         "    pub version: Regex,\n",
         "    pub timestamp: Regex,\n",
+        "    pub full_timestamp: bool,\n",
         "    pub timestamp_formats: Vec<&'static str>,\n",
         "    pub domain: Regex,\n",
-        "    pub level: Regex,\n",
+        "    pub level: Option<Regex>,\n",
         "    pub level_names: LevelNames,\n",
         "}\n\n"
     );
@@ -174,9 +176,10 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
         "        PlatformPatterns {\n",
         "            version: Regex::new(patterns.version).unwrap(),\n",
         "            timestamp: Regex::new(patterns.timestamp).unwrap(),\n",
+        "            full_timestamp: patterns.full_timestamp,\n",
         "            timestamp_formats: patterns.timestamp_formats.clone(),\n",
         "            domain: Regex::new(patterns.domain).unwrap(),\n",
-        "            level: Regex::new(patterns.level).unwrap(),\n",
+        "            level: patterns.level.map(|s| Regex::new(s).unwrap()),\n",
         "            level_names: patterns.level_names.clone(),\n",
         "        }\n",
         "    }\n",
@@ -241,8 +244,23 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
             write_out!(
                 out_file_writer,
                 "        ],\n",
+                "        full_timestamp: {},\n",
                 "        domain: r#\"{}\"#,\n",
-                "        level: r#\"{}\"#,\n",
+                args!(platform.full_timestamp, platform.domain)
+            );
+
+            if let Some(level) = &platform.level {
+                write_out!(
+                    out_file_writer,
+                    "        level: Some(r#\"{}\"#),\n",
+                    args!(level)
+                );
+            } else {
+                write_out!(out_file_writer, "        level: None,\n");
+            }
+
+            write_out!(
+                out_file_writer,
                 "        level_names: LevelNames {{\n",
                 "            error: r#\"{}\"#,\n",
                 "            warn: r#\"{}\"#,\n",
@@ -252,8 +270,6 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
                 "        }},\n",
                 "    }};\n",
                 args!(
-                    platform.domain,
-                    platform.level,
                     platform.level_names.error,
                     platform.level_names.warn,
                     platform.level_names.info,
@@ -583,9 +599,10 @@ struct Patterns {
 struct PlatformPatterns {
     version: String,
     timestamp: String,
+    full_timestamp: bool,
     timestamp_formats: Vec<String>,
     domain: String,
-    level: String,
+    level: Option<String>,
     level_names: LevelNames,
 }
 

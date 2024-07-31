@@ -52,6 +52,8 @@ pub enum Error {
     InvalidVarint,
     #[error("No Level in line \"{0}\"")]
     NoLevel(String),
+    #[error("Cannot parse: {0}")]
+    CannotParse(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
