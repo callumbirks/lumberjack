@@ -1,4 +1,5 @@
 use core::fmt;
+use core::fmt::Write;
 use std::{
     collections::BTreeMap,
     io::{BufRead, BufReader, Read, Seek},
@@ -48,7 +49,7 @@ where
     fn new(mut reader: R) -> Result<Self> {
         let mut header = [0_u8; 6];
         reader.read_exact(&mut header)?;
-        if &header[..4] != &MAGIC_NUMBER {
+        if header[..4] != MAGIC_NUMBER {
             return Err(Error::InvalidBinaryLogs("Invalid header".into(), 0));
         }
         if header[4] != FORMAT_VERSION {
@@ -155,7 +156,7 @@ where
             while "#0- +'".contains(format_chars[i]) {
                 i += 1;
             }
-            while format_chars[i].is_digit(10) {
+            while format_chars[i].is_ascii_digit() {
                 i += 1;
             }
 
@@ -165,7 +166,7 @@ where
                     i += 1;
                     true
                 } else {
-                    while format_chars[i].is_digit(10) {
+                    while format_chars[i].is_ascii_digit() {
                         i += 1;
                     }
                     false
@@ -208,7 +209,7 @@ where
                 }
                 '@' | 's' if is_minus && !is_dot_star => {
                     let string = self.read_tokenized_string()?;
-                    message.push_str(&string);
+                    message.push_str(string);
                 }
                 '@' | 's' => {
                     let length = varint::read(&mut self.reader)? as usize;
@@ -218,8 +219,10 @@ where
                         string = string
                             .into_bytes()
                             .into_iter()
-                            .map(|b| format!("{:02x}", b))
-                            .collect::<String>();
+                            .fold(String::new(), |mut s, b| {
+                                let _ = write!(s, "{:02x}", b);
+                                s
+                            });
                     }
                     message.push_str(&string);
                 }
@@ -283,14 +286,14 @@ where
 
     fn read_tokenized_string(&mut self) -> Result<&String> {
         let token_id = varint::read(&mut self.reader).map_err(|err| self.map_err(err))? as usize;
-        if token_id < self.tokens.len() {
-            Ok(&self.tokens[token_id])
-        } else if token_id == self.tokens.len() {
-            let string = self.read_string()?;
-            self.tokens.push(string);
-            Ok(&self.tokens[token_id])
-        } else {
-            Err(self.create_err("Invalid token string ID!".into()))
+        match token_id.cmp(&self.tokens.len()) {
+            std::cmp::Ordering::Less => Ok(&self.tokens[token_id]),
+            std::cmp::Ordering::Equal => {
+                let string = self.read_string()?;
+                self.tokens.push(string);
+                Ok(&self.tokens[token_id])
+            }
+            std::cmp::Ordering::Greater => Err(self.create_err("Invalid token string ID!".into())),
         }
     }
 
@@ -309,17 +312,7 @@ where
 
     #[inline]
     fn create_err(&mut self, msg: String) -> Error {
-        let err = Error::InvalidBinaryLogs(msg, self.reader.stream_position().unwrap_or(0));
-        // UNCOMMENT FOR DEBUG PURPOSES!
-        //if log::log_enabled!(log::Level::Trace) {
-        //    let backtrace = std::backtrace::Backtrace::capture();
-        //    if backtrace.status() != BacktraceStatus::Captured {
-        //        log::error!("{}\n\tBacktrace is disabled. Try setting `RUST_BACKTRACE=1` if you want backtraces for this error.", err);
-        //    } else {
-        //        log::error!("{}\n{}", err, backtrace);
-        //    }
-        //}
-        err
+        Error::InvalidBinaryLogs(msg, self.reader.stream_position().unwrap_or(0))
     }
 
     #[inline]
@@ -381,7 +374,7 @@ mod varint {
 
         for i in 0..MAX_LEN {
             let byte = reader.read_byte()?;
-            res |= u64::from(byte & 0x7F) << 7 * i;
+            res |= u64::from(byte & 0x7F) << (7 * i);
             if byte < 0x80 {
                 return Ok(res);
             }
@@ -393,7 +386,7 @@ mod varint {
     #[cfg(test)]
     mod test {
         use crate::decoder::varint;
-        use std::io::{BufReader, Cursor, Read};
+        use std::io::Cursor;
 
         #[allow(clippy::cast_possible_truncation)]
         pub fn write(out: &mut [u8], value: u64) -> usize {

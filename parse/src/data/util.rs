@@ -30,7 +30,7 @@ macro_rules! diesel_tosql_transmute {
                     $sql_ty,
                     diesel::sqlite::Sqlite,
                 >>::from_sql(bytes)?;
-                Ok(unsafe { std::mem::transmute(int) })
+                Ok(unsafe { std::mem::transmute::<$out_ty, $in_ty>(int) })
             }
         }
     };

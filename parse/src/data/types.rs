@@ -130,7 +130,7 @@ impl Eq for Line {}
 
 impl PartialOrd<Self> for Line {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.timestamp.partial_cmp(&other.timestamp)
+        Some(self.cmp(other))
     }
 }
 

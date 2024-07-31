@@ -8,7 +8,7 @@ use std::{
 use regex::Regex;
 use util::write_out;
 
-const IN_PATH: &'static str = "src/patterns/";
+const IN_PATH: &str = "src/patterns/";
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
@@ -28,7 +28,7 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
         .truncate(true)
         .create(true)
         .write(true)
-        .open(&out_path)
+        .open(out_path)
         .unwrap();
 
     let mut expected_keys: BTreeSet<String> = BTreeSet::new();
@@ -76,7 +76,7 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
         "                    version.as_str()\n",
         "                };\n",
         "\n",
-        "                let version = Version::parse(version_str).map_err(|err| Error::Semver(err))?;\n",
+        "                let version = Version::parse(version_str).map_err(Error::Semver)?;\n",
         "                return PATTERNS_MAP\n",
         "                    .get(&version)\n",
         "                    .map(|patterns| (Patterns::from_strings(patterns, platform), version.clone()))\n",
@@ -98,7 +98,7 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
         "    pub object: &'static str,\n",
     );
 
-    for (key, _) in &formats.first_key_value().unwrap().1.events {
+    for key in formats.first_key_value().unwrap().1.events.keys() {
         write_out!(out_file_writer, "    pub {}: &'static str,\n", args!(key));
     }
 
@@ -137,7 +137,7 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
         "    pub object: Regex,\n",
     );
 
-    for (key, _) in &formats.first_key_value().unwrap().1.events {
+    for key in formats.first_key_value().unwrap().1.events.keys() {
         expected_keys.insert(key.clone());
         write_out!(out_file_writer, "    pub {}: Regex,\n", args!(key));
     }
@@ -192,7 +192,7 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
         "            object: Regex::new(patterns.object).unwrap(),\n",
     );
 
-    for (key, _) in &formats.first_key_value().unwrap().1.events {
+    for key in formats.first_key_value().unwrap().1.events.keys() {
         write_out!(
             out_file_writer,
             "            {}: Regex::new(patterns.{}).unwrap(),\n",
@@ -304,7 +304,7 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
     write_out!(out_file_writer, "}\n\n");
 
     out_file_writer
-            .write(
+            .write_all(
                 concat!(
                     "lazy_static! {\n",
                     "    static ref PATTERNS_MAP: RangeMap<Version, &'static PatternStrings> = RangeMap::from([\n"
@@ -313,7 +313,7 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
             )
             .unwrap();
 
-    for (index, (compatibility, _)) in formats.into_iter().enumerate() {
+    for (index, (compatibility, _)) in formats.iter().enumerate() {
         write_out!(
             out_file_writer,
             "        (Version::new({}, {}, {})..Version::new({}, {}, {}), &*PATTERNS_{}),\n",
@@ -329,7 +329,7 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
         );
     }
 
-    out_file_writer.write("    ]);\n}\n".as_bytes()).unwrap();
+    write_out!(out_file_writer, "    ]);\n}\n",);
 }
 
 fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
@@ -337,7 +337,7 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
         .truncate(true)
         .create(true)
         .write(true)
-        .open(&out_path)
+        .open(out_path)
         .unwrap();
 
     write_out!(
@@ -386,7 +386,7 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
 
     write_out!(
         out_file_writer,
-        "        _ => return Err(Error::UnsupportedVersion(version.clone())),\n",
+        "        _ => Err(Error::UnsupportedVersion(version.clone())),\n",
         "    }\n",
         "}\n\n"
     );
@@ -409,7 +409,7 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
         "pub enum EventType {\n"
     );
 
-    for (key, _) in &formats.first_key_value().unwrap().1.events {
+    for key in formats.first_key_value().unwrap().1.events.keys() {
         let key = snake_to_pascal_case(key);
         write_out!(out_file_writer, "    {},\n", args!(&key));
     }
@@ -464,7 +464,7 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
                     "            let (",
                     args!(event_key)
                 );
-                for (key, _) in captures {
+                for key in captures.keys() {
                     write_out!(out_file_writer, "{}, ", args!(key));
                 }
                 write_out!(out_file_writer, ") = (\n");
@@ -503,7 +503,7 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
                     "            let data = {} {{\n",
                     args!(snake_to_pascal_case(event_key))
                 );
-                for (key, _) in captures {
+                for key in captures.keys() {
                     write_out!(out_file_writer, "                {},\n", args!(key));
                 }
                 write_out!(
@@ -546,11 +546,7 @@ fn parse_yaml() -> BTreeMap<Compatibility, Patterns> {
 
     let mut formats: BTreeMap<Compatibility, Patterns> = BTreeMap::new();
 
-    for (_, dir_entry) in std::fs::read_dir(&in_dir)
-        .unwrap()
-        .map(Result::unwrap)
-        .enumerate()
-    {
+    for dir_entry in std::fs::read_dir(in_dir).unwrap().map(Result::unwrap) {
         if dir_entry.file_type().unwrap().is_dir() {
             continue;
         }
@@ -647,7 +643,7 @@ struct Compatibility {
 
 impl Compatibility {
     fn from_file_name(regex: &Regex, file_name: &str) -> Compatibility {
-        let Some(captures) = regex.captures(&file_name) else {
+        let Some(captures) = regex.captures(file_name) else {
             panic!("Invalid file name: '{}'. File name should match the pattern '<major>-<minor>-<patch>_<major>-<minor>-<patch>'", &file_name);
         };
 
@@ -687,10 +683,10 @@ impl Compatibility {
 mod util {
     macro_rules! write_out {
         ($writer:expr, $($string:literal),+$(,)?) => {
-            $writer.write(concat!($($string),+).as_bytes()).unwrap();
+            $writer.write_all(concat!($($string),+).as_bytes()).unwrap();
         };
         ($writer:expr, $($string:literal),+, args!($($args:expr),+$(,)?)$(,)?) => {
-            $writer.write(format!(concat!($($string),+), $($args),+).as_bytes()).unwrap();
+            $writer.write_all(format!(concat!($($string),+), $($args),+).as_bytes()).unwrap();
         };
     }
 

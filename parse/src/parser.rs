@@ -134,7 +134,7 @@ impl Parser {
                 .filter_map(|entry| entry.ok())
                 .map(|entry| entry.path())
                 .filter(|path| path.is_file())
-                .filter(|path| match regex_patterns::patterns_for_file(&path) {
+                .filter(|path| match regex_patterns::patterns_for_file(path) {
                     Err(err) => {
                         log::error!("Error validating file {:?}: {}", path, err);
                         false
@@ -265,7 +265,7 @@ pub(crate) fn read_lines(file_path: &Path) -> Result<Vec<String>> {
         decoder::decode_lines(file_path)
     } else {
         let contents = std::fs::read_to_string(file_path)?;
-        Ok(contents.lines().into_iter().map(str::to_string).collect())
+        Ok(contents.lines().map(str::to_string).collect())
     }
 }
 

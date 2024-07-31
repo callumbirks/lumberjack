@@ -1,0 +1,45 @@
+name: Build and Test
+
+on:
+  push:
+    branches:
+      - main
+      - release/*
+  pull_request:
+    branches:
+      - "**"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update Rust Toolchain
+        run: |
+          rustup update
+          rustup component add clippy
+
+      - name: Toolchain Info
+        run: cargo --version --verbose && rustup show && cargo clippy --version
+
+      - name: Lint
+        working-directory: ${{ github.workspace }}
+        run: |
+          cargo fmt -- --check
+          cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Test
+        working-directory: ${{ github.workspace }}
+        run: |
+          cargo check
+          cargo test --all
+
+      - name: Build
+        working-directory: ${{ github.workspace }}
+        run: cargo build --release

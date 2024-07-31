@@ -2,6 +2,7 @@ pub mod data;
 pub(crate) mod decoder;
 mod error;
 mod parser;
+#[rustfmt::skip]
 pub mod schema;
 pub mod util;
 
