@@ -11,7 +11,7 @@ use regex::Regex;
 use util::match_event;
 
 use crate::{
-    data::{event::*, Domain, Event, File, Level, Line, Object, ObjectType},
+    data::{parse_event, Domain, Event, File, Level, Line, Object, ObjectType},
     decoder, Error, Result,
 };
 
@@ -138,7 +138,7 @@ impl Parser {
             unimplemented!("Parse line level")
         };
 
-        let event = parse_event(line, object.object_type, &self.patterns)?;
+        let event = parse_event(line, &self.version, &self.patterns)?;
 
         let line = Line {
             file_id: file.id,
@@ -288,44 +288,6 @@ fn parse_timestamp(
         }
     }
     Err(Error::NoTimestamp(line.to_string()))
-}
-
-fn parse_event(
-    line: &str,
-    object_type: ObjectType,
-    patterns: &regex_patterns::Patterns,
-) -> Result<Event> {
-    match_event! { line, object_type, patterns,
-        ObjectType::DB => [
-            DBOpenEvent,
-            DBUpgradeEvent,
-            DBTxBeginEvent,
-            DBTxCommitEvent,
-            DBTxAbortEvent,
-            DBSavedRevEvent,
-        ],
-        ObjectType::Repl => [
-            ReplConflictScanEvent,
-            ReplConnectedEvent,
-            ReplActivityUpdateEvent,
-            ReplStatusUpdateEvent,
-        ],
-        //ObjectType::Query => [
-        //    // TODO: QueryCreateIndexEvent,
-        //],
-        ObjectType::Housekeeper => [
-            HousekeeperMonitorEvent,
-        ],
-        ObjectType::BLIPIO => [
-            BLIPSendRequestStartEvent,
-            BLIPQueueRequestEvent,
-            BLIPWSWriteStartEvent,
-            BLIPSendFrameEvent,
-            BLIPSendRequestEndEvent,
-            BLIPWSWriteEndEvent,
-            BLIPReceiveFrameEvent,
-        ]
-    }
 }
 
 pub(crate) fn read_lines(file_path: &Path) -> Result<Vec<String>> {

@@ -23,82 +23,103 @@ object: ": \\{(?<obj>\\w+)#(?<id>\\d+)\\}"
 domain: "\\d+\\| \\[(?<domain>\\w+)\\]: "
 
 events:
-  db_open: "Opening database"
-  # Captures
-  #   old_ver: Old schema version
-  #   new_ver: New schema version
-  db_upgrade: "SCHEMA UPGRADE \\((?<old_ver>\\d+)-(?<new_ver>\\d+)\\)"
-  db_tx_begin: "begin transaction"
-  db_tx_commit: "commit transaction"
-  db_tx_abort: "abort transaction"
-  # Captures
-  #   doc_id: Document ID
-  #   rev_id: Revision ID
-  #   sequence: Sequence number
-  db_saved_rev: "Saved '(?<doc_id>\\S+)' rev (?<rev_id>\\S+) as seq (?<sequence>\\d+)"
-  housekeeper_monitor: "Housekeeper: opening background database"
-  # Captures
-  #    num_conflicts: Number of conflicts
-  repl_conflict_scan: "Found (?<num_conflicts>\\d+) conflicted docs in"
-  repl_connected: "Connected!"
-  # Captures
-  #    activity: Activity level (string)
-  #    connection_state: BLIP Connection state (enum discriminant)
-  #    saving_checkpoint: Whether the repl needs to save a checkpoint (bool represented as 0 or 1)
-  repl_activity_update: "activityLevel=(?<activity>\\S+): connectionState=(?<connection_state>\\d), savingChkpt=(?<saving_checkpoint>\\d+)"
-  # Captures
-  #   push_status: Push status (string)
-  #   pull_status: Pull status (string)
-  #   completed: Number of completed items
-  #   total: Total number of items
-  #   doc_count: Number of documents
-  repl_status_update: "pushStatus=(?<push_status>\\S+), pullStatus=(?<pull_status>\\S+), progress=(?<completed>\\d+)/(?<total>\\d+)/(?<doc_count>\\d+)"
-  # Captures
-  #   mode: Replication mode (string, "push" or "pull")
-  #   sequence: Sequence number
-  subrepl_start: "Starting (?<mode>\\w+) from remote seq '(?<sequence>\\d+)'"
-  # Captures
-  #   handled: Number of handled revisions
-  #   pending: Number of pending revisions
-  puller_handled_revs: "(?<handled>\\d+) revs were provisionally handled; down to (?<pending>\\d+) revs"
-  # Captures
-  #   doc_id: Document ID
-  #   collection: Either 'scope.collection', or '_default' for default collection
-  #   rev_id: Revision ID
-  #   rev_history: Revision history
-  #   sequence: Sequence number
-  inserter_insert_rev: "\\{'(?<doc_id>\\S+) \\((?<collection>\\S+)\\)' #(?<rev_id>\\S+) <- (?<rev_history>\\S+)\\} seq (?<sequence>\\d+)"
-  # Captures
-  #   request: Request type (string)
-  #   id: Request ID
-  blip_send_request_start: "Sending '(?<request>\\w+)' REQ #(?<id>\\d+)"
-  # Captures
-  #   id: Request ID
-  blip_queue_request: "Requeuing REQ #(?<id>\\d+)"
-  blip_ws_write_start: "Starting writeToWebSocket loop..."
-  # Captures
-  #   id: Request ID
-  #   message_type: Message type (string, "REQ", "RES", "ERR")
-  #   more_coming: Whether more frames are coming (char represented as "M" or "-")
-  #   urgent: Whether the message is urgent (char represented as "U" or "-")
-  #   no_reply: Whether the message expects no reply (char represented as "N" or "-")
-  #   compressed: Whether the message is compressed (char represented as "C" or "-")
-  #   from_byte: Starting byte
-  #   to_byte: Ending byte
-  blip_send_frame: "Sending frame: (?<message_type>\\w+) #(?<id>\\d+) (?<more_coming>M|-)(?<urgent>U|-)(?<no_reply>N|-)(?<compressed>C|-), bytes (?<from_byte>\\d+)--(?<to_byte>\\d+)"
-  # Captures
-  #   id: Request ID
-  blip_send_request_end: "Finished sending REQ #(?<id>\\d+)"
-  # Captures
-  #   bytes: Number of bytes written
-  #   writeable: Whether the WebSocket is writeable (bool represented as 0 or 1)
-  blip_ws_write_end: "...Wrote (?<bytes>\\d+) bytes to WebSocket \\(writeable=(?<writeable>\\d)\\)"
-  # Captures
-  #   message_type: Message type (string, "REQ", "RES", "ERR")
-  #   id: Message ID
-  #   more_coming: Whether more frames are coming (char represented as "M" or "-")
-  #   urgent: Whether the message is urgent (char represented as "U" or "-")
-  #   no_reply: Whether the message expects no reply (char represented as "N" or "-")
-  #   compressed: Whether the message is compressed (char represented as "C" or "-")
-  #   length: Length of the message (in bytes)
-  blip_receive_frame: "Received frame: (?<message_type>\\w+) #(?<id>\\d+) (?<more_coming>M|-)(?<urgent>U|-)(?<no_reply>N|-)(?<compressed>C|-), length\\s+(?<length>\\d+)"
+  db_open:
+    regex: "Opening database"
+  db_upgrade:
+    regex: "SCHEMA UPGRADE \\((?<old_ver>\\d+)-(?<new_ver>\\d+)\\)"
+    captures:
+      old_ver: Int # Old schema version
+      new_ver: Int # New schema version
+  db_tx_begin:
+    regex: "begin transaction"
+  db_tx_commit:
+    regex: "commit transaction"
+  db_tx_abort:
+    regex: "abort transaction"
+  db_saved_rev:
+    regex: "Saved '(?<doc_id>\\S+)' rev (?<rev_id>\\S+) as seq (?<sequence>\\d+)"
+    captures:
+      doc_id: String # Document ID
+      rev_id: String # Revision ID
+      sequence: Int # Sequence number
+  housekeeper_monitor:
+    regex: "Housekeeper: opening background database"
+  repl_conflict_scan:
+    regex: "Found (?<num_conflicts>\\d+) conflicted docs in"
+    captures:
+      num_conflicts: Int # Number of conflicts
+  repl_connected:
+    regex: "Connected!"
+  repl_activity_update:
+    regex: "activityLevel=(?<activity>\\S+): connectionState=(?<connection_state>\\d), savingChkpt=(?<saving_checkpoint>\\d+)"
+    captures:
+      activity: String # Activity level
+      connection_state: Int # BLIP Connection state
+      saving_checkpoint: Int # Whether the repl needs to save a checkpoint
+  repl_status_update:
+    regex: "pushStatus=(?<push_status>\\S+), pullStatus=(?<pull_status>\\S+), progress=(?<completed>\\d+)/(?<total>\\d+)/(?<doc_count>\\d+)"
+    captures:
+      push_status: String # Push status
+      pull_status: String # Pull status
+      completed: Int # Number of completed items
+      total: Int # Total number of items
+      doc_count: Int # Number of documents
+  subrepl_start:
+    regex: "Starting (?<mode>\\w+) from remote seq '(?<sequence>\\d+)'"
+    captures:
+      mode: String # Replication mode ('push' or 'pull')
+      sequence: Int # Sequence number
+  puller_handled_revs:
+    regex: "(?<handled>\\d+) revs were provisionally handled; down to (?<pending>\\d+) revs"
+    captures:
+      handled: Int # Number of handled revisions
+      pending: Int # Number of pending revisions
+  inserter_insert_rev:
+    regex: "\\{'(?<doc_id>\\S+) \\((?<collection>\\S+)\\)' #(?<rev_id>\\S+) <- (?<rev_history>\\S+)\\} seq (?<sequence>\\d+)"
+    captures:
+      doc_id: String # Document ID
+      collection: String # Either 'scope.collection', or '_default' for default collection
+      rev_id: String # Revision ID
+      rev_history: String # Revision history
+      sequence: Int # Sequence number
+  blip_send_request_start:
+    regex: "Sending '(?<request>\\w+)' REQ #(?<id>\\d+)"
+    captures:
+      request: String # Request type
+      id: Int # Request ID
+  blip_queue_request:
+    regex: "Requeuing REQ #(?<id>\\d+)"
+    captures:
+      id: Int # Request ID
+  blip_ws_write_start:
+    regex: "Starting writeToWebSocket loop..."
+  blip_send_frame:
+    regex: "Sending frame: (?<message_type>\\w+) #(?<id>\\d+) (?<more_coming>M|-)(?<urgent>U|-)(?<no_reply>N|-)(?<compressed>C|-), bytes (?<from_byte>\\d+)--(?<to_byte>\\d+)"
+    captures:
+      id: Int # Request ID
+      message_type: String # Message type (i.e. "REQ", "RES", "ERR")
+      more_coming: Char # Whether more frames are coming
+      urgent: Char # Whether the message is urgent
+      no_reply: Char # Whether the message expects no reply
+      compressed: Char # Whether the message is compressed
+      from_byte: Int # Starting byte
+      to_byte: Int # Ending byte
+  blip_send_request_end:
+    regex: "Finished sending REQ #(?<id>\\d+)"
+    captures:
+      id: Int # Request ID
+  blip_ws_write_end:
+    regex: "...Wrote (?<bytes>\\d+) bytes to WebSocket \\(writeable=(?<writeable>\\d)\\)"
+    captures:
+      bytes: Int # Number of bytes written
+      writeable: Bool # Whether the WebSocket is writeable
+  blip_receive_frame:
+    regex: "Received frame: (?<message_type>\\w+) #(?<id>\\d+) (?<more_coming>M|-)(?<urgent>U|-)(?<no_reply>N|-)(?<compressed>C|-), length\\s+(?<length>\\d+)"
+    captures:
+      id: Int # Message ID
+      message_type: String # Message type (i.e. "REQ", "RES", "ERR")
+      more_coming: Char # Whether more frames are coming
+      urgent: Char # Whether the message is urgent
+      no_reply: Char # Whether the message expects no reply
+      compressed: Char # Whether the message is compressed
+      length: Int # Length of the message

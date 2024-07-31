@@ -64,5 +64,5 @@ macro_rules! diesel_tosql_json {
     };
 }
 
-pub(super) use diesel_tosql_transmute;
-pub(super) use impl_display_debug;
+pub(crate) use diesel_tosql_transmute;
+pub(crate) use impl_display_debug;

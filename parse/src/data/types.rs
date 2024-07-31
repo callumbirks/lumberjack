@@ -1,4 +1,3 @@
-pub mod event;
 mod object;
 
 use crate::data::util::{diesel_tosql_transmute, impl_display_debug};
@@ -7,9 +6,14 @@ use crate::Error;
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use diesel::{sql_types, AsExpression, FromSqlRow};
+pub use events::*;
 use serde::Serialize;
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
+
+mod events {
+    include!(concat!(env!("OUT_DIR"), "/events.rs"));
+}
 
 #[derive(
     Insertable, Serialize, Identifiable, Queryable, Selectable, Associations, Debug, Clone,
@@ -47,12 +51,6 @@ pub struct File {
     pub path: String,
     pub level: Option<Level>,
     pub timestamp: NaiveDateTime,
-}
-
-#[derive(Serialize, PartialEq, Eq, Debug, Clone)]
-pub struct Event {
-    pub event_type: EventType,
-    pub data: Option<String>,
 }
 
 #[derive(AsExpression, FromSqlRow, Serialize, Hash, Debug, Copy, Clone, Eq, PartialEq)]
@@ -111,47 +109,6 @@ pub enum ObjectType {
 
 impl_display_debug!(ObjectType);
 diesel_tosql_transmute!(ObjectType, i32, sql_types::Integer);
-
-#[derive(AsExpression, FromSqlRow, Serialize, Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(i32)]
-#[diesel(sql_type = sql_types::Integer)]
-pub enum EventType {
-    None,
-    // Common Events
-    Created,
-    Destroyed,
-    // Database Events
-    DBOpening,
-    DBUpgrade,
-    DBTxBegin,
-    DBTxCommit,
-    DBTxAbort,
-    DBSavedRev,
-    // Query Events
-    QueryCreateIndex,
-    // Subrepl Events
-    SubreplStart,
-    PullerHandledRevs,
-    // BLIP Events
-    BLIPSendRequestStart,
-    BLIPQueueRequest,
-    BLIPWSWriteStart,
-    BLIPSendFrame,
-    BLIPSendRequestEnd,
-    BLIPWSWriteEnd,
-    BLIPReceiveFrame,
-    // Housekeeper Events
-    HousekeeperMonitoring,
-    // Repl Events
-    ReplConflictScan,
-    ReplConnected,
-    ReplActivityUpdate,
-    ReplStatusUpdate,
-    ReplStart,
-}
-
-diesel_tosql_transmute!(EventType, i32, sql_types::Integer);
-impl_display_debug!(EventType);
 
 impl Object {
     pub fn name(&self) -> String {
