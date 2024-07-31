@@ -81,7 +81,11 @@ fn main() -> Result<()> {
         )
     };
 
-    let db_path = out_dir.with_file_name(&db_file_name);
+    let db_path = out_dir.join(&db_file_name);
+
+    if !out_dir.exists() {
+        panic!("Output directory does not exist: {:?}", out_dir)
+    }
 
     lumberjack_parse::parse(&args.input, &db_path)?;
 
