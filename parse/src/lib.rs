@@ -42,7 +42,7 @@ pub fn parse(in_path: &Path) -> ParserOptions {
 
 /// Parse logs from the given path (either a file or a directory) and return the populated database.
 fn _parse<'a>(options: ParserOptions<'a>) -> Result<SqliteConnection> {
-    log::debug!("Starting parse with options: {:?}", &options);
+    log::info!("Starting parse with options: {:?}", &options);
 
     let hash = {
         let mut hasher = DefaultHasher::new();
@@ -56,8 +56,15 @@ fn _parse<'a>(options: ParserOptions<'a>) -> Result<SqliteConnection> {
 
     let parser = Parser::new(options.in_path)?;
 
+    let mut total_files = 0_u64;
+    let mut total_lines = 0_u64;
+    let mut total_objects = 0_u64;
+
     for result in parser.parse() {
-        log::info!(
+        total_files += 1;
+        total_lines += result.lines.len() as u64;
+        total_objects += result.objects.len() as u64;
+        log::debug!(
             "Inserting 1 file, {} lines, {} objects into the database",
             result.lines.len(),
             result.objects.len(),
@@ -76,7 +83,12 @@ fn _parse<'a>(options: ParserOptions<'a>) -> Result<SqliteConnection> {
         })?;
     }
 
-    log::info!("Parsing complete");
+    log::info!(
+        "Parsing complete. Parsed {} files, {} lines, {} objects",
+        total_files,
+        total_lines,
+        total_objects
+    );
 
     Ok(conn)
 }

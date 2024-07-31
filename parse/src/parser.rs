@@ -1,17 +1,16 @@
 use std::{
     collections::HashSet,
-    ffi::OsStr,
-    io::Read,
     path::{Path, PathBuf},
     str::FromStr,
 };
 
-use chrono::{NaiveDate, NaiveDateTime, NaiveTime, TimeDelta};
+use chrono::NaiveDateTime;
+use rayon::prelude::*;
 use regex::Regex;
-use util::match_event;
+use regex_patterns::LevelNames;
 
 use crate::{
-    data::{parse_event, Domain, Event, File, Level, Line, Object, ObjectType},
+    data::{parse_event, Domain, File, Level, Line, Object, ObjectType},
     decoder, Error, Result,
 };
 
@@ -52,48 +51,37 @@ impl Parser {
     fn parse_file(&self, index: usize) -> Result<ParserOutput> {
         let path = self.files[index].as_path();
         let lines = read_lines(path)?;
-        let Some(file_name) = path.file_stem().and_then(OsStr::to_str) else {
-            return Err(Error::InvalidFilename(path.to_string_lossy().to_string()));
-        };
-        let level = level_from_filename(file_name);
-        let Some(timestamp) = timestamp_from_filename(file_name) else {
-            return Err(Error::InvalidFilename(path.to_string_lossy().to_string()));
-        };
+
+        let line_count = lines.len();
 
         let file = File {
             id: index as i32,
             path: path.to_string_lossy().to_string(),
-            level,
-            timestamp,
         };
 
-        let mut additional_days = TimeDelta::days(0);
         let (lines, objects): (Vec<Line>, HashSet<Object>) = lines
-            .into_iter()
+            .into_par_iter()
             .enumerate()
             .map(|(i, line)| {
-                let res = self.parse_line(
-                    &line,
-                    i as u64,
-                    &file,
-                    file.timestamp.date() + additional_days,
-                );
+                let res = self.parse_line(&line, i as u64, &file);
 
-                let Ok((mut line, object)) = res else {
+                let Ok((line, object)) = res else {
                     let err = res.unwrap_err();
                     log::trace!("Line parsing error: {}", &err);
                     return Err(err);
                 };
 
-                if line.timestamp - file.timestamp < additional_days {
-                    additional_days += TimeDelta::days(1);
-                    line.timestamp += TimeDelta::days(1);
-                }
-
                 Ok((line, object))
             })
             .filter_map(|res| res.ok())
             .unzip();
+
+        log::debug!(
+            "Parsed {}, skipped {} lines from {}",
+            lines.len(),
+            line_count - lines.len(),
+            &file.path
+        );
 
         Ok(ParserOutput {
             file,
@@ -102,22 +90,21 @@ impl Parser {
         })
     }
 
-    fn parse_line(
-        &self,
-        line: &str,
-        line_num: u64,
-        file: &File,
-        base_date: NaiveDate,
-    ) -> Result<(Line, Object)> {
-        let domain = parse_domain(line, &self.patterns.domain)?;
+    fn parse_line(&self, line: &str, line_num: u64, file: &File) -> Result<(Line, Object)> {
+        let domain = parse_domain(line, &self.patterns.platform.domain)?;
 
         let object = parse_object(line, &self.patterns.object)?;
 
         let timestamp = parse_timestamp(
-            base_date,
             line,
-            self.patterns.timestamp.as_slice(),
-            self.patterns.timestamp_formats.as_slice(),
+            &self.patterns.platform.timestamp,
+            self.patterns.platform.timestamp_formats.as_slice(),
+        )?;
+
+        let level = parse_level(
+            line,
+            &self.patterns.platform.level,
+            &self.patterns.platform.level_names,
         )?;
 
         let line = {
@@ -130,12 +117,6 @@ impl Parser {
                 .unwrap()
                 .end();
             line.split_at(object_end + 2).1
-        };
-
-        let level = if let Some(level) = file.level {
-            level
-        } else {
-            unimplemented!("Parse line level")
         };
 
         let event = parse_event(line, &self.version, &self.patterns)?;
@@ -165,7 +146,16 @@ impl Parser {
                 .filter_map(|entry| entry.ok())
                 .map(|entry| entry.path())
                 .filter(|path| path.is_file())
-                .filter(|path| regex_patterns::patterns_for_file(&path).is_ok())
+                .filter(|path| match regex_patterns::patterns_for_file(&path) {
+                    Err(err) => {
+                        log::error!("Error validating file {:?}: {}", path, err);
+                        false
+                    }
+                    Ok((_, version)) => {
+                        log::debug!("Found valid log file {:?} with version {}", path, version);
+                        true
+                    }
+                })
                 .collect()
         } else if regex_patterns::patterns_for_file(&path).is_ok() {
             vec![path.to_path_buf()]
@@ -203,31 +193,6 @@ impl<'a> Iterator for ParserIter<'a> {
     }
 }
 
-// TODO: Remove once we are using 3.2 logs
-fn level_from_filename(name: &str) -> Option<Level> {
-    let Some(level_str) = name.split('_').nth(1) else {
-        return None;
-    };
-    Level::from_str(level_str).ok()
-}
-
-// TODO: Remove once we are using 3.2 logs
-fn timestamp_from_filename(name: &str) -> Option<NaiveDateTime> {
-    let Some(ts_str) = name.split('_').last() else {
-        return None;
-    };
-
-    let Some(dt) = ts_str
-        .parse()
-        .ok()
-        .and_then(|int| chrono::DateTime::from_timestamp_millis(int))
-    else {
-        return None;
-    };
-
-    Some(dt.naive_utc())
-}
-
 fn parse_domain(line: &str, regex: &Regex) -> Result<Domain> {
     let Some(caps) = regex.captures(line) else {
         return Err(Error::NoDomain(line.to_string()));
@@ -239,6 +204,19 @@ fn parse_domain(line: &str, regex: &Regex) -> Result<Domain> {
         .as_str();
 
     Domain::from_str(domain_str)
+}
+
+fn parse_level(line: &str, regex: &Regex, level_names: &LevelNames) -> Result<Level> {
+    let Some(caps) = regex.captures(line) else {
+        return Err(Error::NoLevel(line.to_string()));
+    };
+
+    let level_str = caps
+        .name("level")
+        .ok_or(Error::NoLevel(line.to_string()))?
+        .as_str();
+
+    Level::from_str(level_str, level_names)
 }
 
 fn parse_object(line: &str, regex: &Regex) -> Result<Object> {
@@ -264,28 +242,25 @@ fn parse_object(line: &str, regex: &Regex) -> Result<Object> {
 }
 
 fn parse_timestamp(
-    base_date: NaiveDate,
     line: &str,
-    timestamp_regex: &[Regex],
+    timestamp_regex: &Regex,
     timestamp_formats: &[&str],
 ) -> Result<NaiveDateTime> {
-    for timestamp_re in timestamp_regex {
-        let Some(caps) = timestamp_re.captures(line) else {
+    let Some(caps) = timestamp_regex.captures(line) else {
+        return Err(Error::NoTimestamp(line.to_string()));
+    };
+
+    let Some(ts_match) = caps.name("ts") else {
+        panic!("Regex has no 'ts' capture group!!");
+    };
+
+    let ts_str = ts_match.as_str();
+
+    for timestamp_format in timestamp_formats {
+        let Ok(ts) = NaiveDateTime::parse_from_str(ts_str, timestamp_format) else {
             continue;
         };
-
-        let Some(ts_match) = caps.name("ts") else {
-            panic!("Regex has no 'ts' capture group!!");
-        };
-
-        let ts_str = ts_match.as_str();
-
-        for timestamp_format in timestamp_formats {
-            let Ok(ts) = NaiveTime::parse_from_str(ts_str, timestamp_format) else {
-                continue;
-            };
-            return Ok(base_date.and_time(ts));
-        }
+        return Ok(ts);
     }
     Err(Error::NoTimestamp(line.to_string()))
 }
@@ -297,26 +272,6 @@ pub(crate) fn read_lines(file_path: &Path) -> Result<Vec<String>> {
         let contents = std::fs::read_to_string(file_path)?;
         Ok(contents.lines().into_iter().map(str::to_string).collect())
     }
-}
-
-mod util {
-    macro_rules! match_event {
-        ($line:expr, $object_ty:expr, $regex_cache:expr, $($mat_object_ty:pat => [
-            $($event_ty:ty),+$(,)?
-        ]),+$(,)?) => {
-            match $object_ty {
-                $($mat_object_ty => {
-                    $(if let Ok(event) = <$event_ty>::from_line($line, $regex_cache) {
-                        return Ok(Event::from(event));
-                    })+
-                    return Err(Error::NoEvent($line.to_string()));
-                }),+,
-                _ => Err(Error::NoEvent($line.to_string()))
-            }
-        };
-    }
-
-    pub(super) use match_event;
 }
 
 pub mod regex_patterns {

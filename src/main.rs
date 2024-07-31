@@ -9,10 +9,18 @@ use thiserror::Error;
 #[command(version, about, long_about = None)]
 struct Args {
     #[arg(short, long)]
+    /// The input path of log file(s) to parse
     input: PathBuf,
     #[cfg(feature = "xlsx")]
     #[arg(long, default_value_t = false)]
+    /// If specified, output the parsed data to an xlsx file
     out_xlsx: bool,
+    #[arg(short, long)]
+    /// Enable verbose logging
+    verbose: bool,
+    #[arg(short, long)]
+    /// Enable extra verbose logging
+    extra_verbose: bool,
 }
 
 #[derive(Error, Debug)]
@@ -29,8 +37,20 @@ enum Error {
 type Result<T> = std::result::Result<T, Error>;
 
 fn main() -> Result<()> {
-    env_logger::builder().format_timestamp_millis().init();
     let args = Args::parse();
+
+    let level_filter = if args.extra_verbose {
+        log::LevelFilter::Trace
+    } else if args.verbose {
+        log::LevelFilter::Debug
+    } else {
+        log::LevelFilter::Info
+    };
+
+    env_logger::builder()
+        .format_timestamp_millis()
+        .filter_level(level_filter)
+        .init();
 
     let conn = lumberjack_parse::parse(&args.input).execute()?;
 

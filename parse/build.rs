@@ -17,13 +17,13 @@ fn main() {
     let regex_out_path = std::path::Path::new(&out_dir).join("regex_patterns.rs");
     let events_out_path = std::path::Path::new(&out_dir).join("events.rs");
 
-    let formats: BTreeMap<Compatibility, PatternsFile> = parse_yaml();
+    let formats: BTreeMap<Compatibility, Patterns> = parse_yaml();
 
     create_regex_patterns(regex_out_path.as_path(), &formats);
     create_events(events_out_path.as_path(), &formats);
 }
 
-fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, PatternsFile>) {
+fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
     let mut out_file_writer = std::fs::OpenOptions::new()
         .truncate(true)
         .create(true)
@@ -35,35 +35,32 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
 
     write_out!(
         out_file_writer,
+        "use crate::parser::read_lines;\n",
+        "use crate::{Error, Result};\n",
         "use lazy_static::lazy_static;\n",
         "use rangemap::RangeMap;\n",
         "use regex::Regex;\n",
         "use semver::Version;\n",
-        "use std::path::Path;\n",
-        "use crate::parser::read_lines;\n",
-        "use crate::{Error, Result};\n\n",
+        "use std::path::Path;\n\n",
     );
 
     write_out!(
         out_file_writer,
-        "pub fn patterns_for_version(version: &Version) -> Result<Patterns> {\n",
-        "    PATTERNS_MAP.get(version).map(|p| Patterns::from(*p)).ok_or(Error::UnsupportedVersion(version.clone()))\n",
-        "}\n\n"
-    );
-
-    write_out!(
-        out_file_writer,
+        "/// Loop over every line of a file and attempt to match against 'version' regex for all known formats and platforms,\n",
+        "/// returning the matching pattern, and the version, if found.\n",
         "pub fn patterns_for_file(path: &Path) -> Result<(Patterns, Version)> {\n",
-        "    let lines = read_lines(path)?;",
+        "    let lines = read_lines(path)?;\n",
         "    for (_, patterns) in PATTERNS_MAP.iter() {\n",
-        "        let versions_re = patterns\n",
-        "            .version\n",
-        "            .iter()\n",
-        "            .map(|r| Regex::new(r).unwrap())\n",
-        "            .collect::<Vec<_>>();\n",
-        "\n",
+        "        let mut version_re_cache: Vec<Regex> = vec![];\n",
         "        for line in &lines {\n",
-        "            for version_re in &versions_re {\n",
+        "            for (index, platform) in patterns.platforms.iter().enumerate() {\n",
+        "                let version_re = if index < version_re_cache.len() {\n",
+        "                    &version_re_cache[index]\n",
+        "                } else {\n",
+        "                    let vr = Regex::new(platform.version).unwrap();\n",
+        "                    version_re_cache.push(vr);\n",
+        "                    &version_re_cache[index]\n",
+        "                };\n\n",
         "                let Some(captures) = version_re.captures(line) else {\n",
         "                    continue;\n",
         "                };\n",
@@ -72,7 +69,7 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
         "                    panic!(\"YAML 'version' spec is missing 'ver' capture!\");\n",
         "                };\n",
         "\n",
-        "                // TODO: TEMP FIX FOR CORE CPPTEST LOGS\n",
+        "                // TODO: REMOVE TEMP FIX FOR CORE CPPTEST LOGS\n",
         "                let version_str = if version.as_str() == \"3.2\" {\n",
         "                    \"3.2.0\"\n",
         "                } else {\n",
@@ -80,7 +77,10 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
         "                };\n",
         "\n",
         "                let version = Version::parse(version_str).map_err(|err| Error::Semver(err))?;\n",
-        "                return patterns_for_version(&version).map(|p| (p, version));\n",
+        "                return PATTERNS_MAP\n",
+        "                    .get(&version)\n",
+        "                    .map(|patterns| (Patterns::from_strings(patterns, platform), version.clone()))\n",
+        "                    .ok_or(Error::UnsupportedVersion(version));\n",
         "            }\n",
         "        }\n",
         "    }\n",
@@ -91,17 +91,14 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
     write_out!(
         out_file_writer,
         "#[derive(Debug, Clone)]\n",
-        "pub struct PatternStrings {\n",
+        "struct PatternStrings {\n",
         "    /// Only used to satisfy RangeMap's requirement that Value implements Eq.\n",
         "    _id: usize,\n",
-        "    pub version: Vec<&'static str>,\n",
-        "    pub timestamp: Vec<&'static str>,\n",
-        "    pub timestamp_formats: Vec<&'static str>,\n",
+        "    pub platforms: Vec<&'static PlatformPatternStrings>,\n",
         "    pub object: &'static str,\n",
-        "    pub domain: &'static str,\n",
     );
 
-    for (key, _) in &formats.first_key_value().unwrap().1.patterns.events {
+    for (key, _) in &formats.first_key_value().unwrap().1.events {
         write_out!(out_file_writer, "    pub {}: &'static str,\n", args!(key));
     }
 
@@ -110,20 +107,55 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
     write_out!(
         out_file_writer,
         "#[derive(Debug, Clone)]\n",
-        "pub struct Patterns {\n",
-        "    pub version: Vec<Regex>,\n",
-        "    pub timestamp: Vec<Regex>,\n",
+        "struct PlatformPatternStrings {\n",
+        "    pub version: &'static str,\n",
+        "    pub timestamp: &'static str,\n",
         "    pub timestamp_formats: Vec<&'static str>,\n",
-        "    pub object: Regex,\n",
-        "    pub domain: Regex,\n",
+        "    pub domain: &'static str,\n",
+        "    pub level: &'static str,\n",
+        "    pub level_names: LevelNames,\n",
+        "}\n\n"
     );
 
-    for (key, _) in &formats.first_key_value().unwrap().1.patterns.events {
+    write_out!(
+        out_file_writer,
+        "#[derive(Debug, Clone)]\n",
+        "pub struct LevelNames {\n",
+        "    pub error: &'static str,\n",
+        "    pub warn: &'static str,\n",
+        "    pub info: &'static str,\n",
+        "    pub verbose: &'static str,\n",
+        "    pub debug: &'static str,\n",
+        "}\n\n"
+    );
+
+    write_out!(
+        out_file_writer,
+        "#[derive(Debug, Clone)]\n",
+        "pub struct Patterns {\n",
+        "    pub platform: PlatformPatterns,\n",
+        "    pub object: Regex,\n",
+    );
+
+    for (key, _) in &formats.first_key_value().unwrap().1.events {
         expected_keys.insert(key.clone());
         write_out!(out_file_writer, "    pub {}: Regex,\n", args!(key));
     }
 
     write_out!(out_file_writer, "}\n\n");
+
+    write_out!(
+        out_file_writer,
+        "#[derive(Debug, Clone)]\n",
+        "pub struct PlatformPatterns {\n",
+        "    pub version: Regex,\n",
+        "    pub timestamp: Regex,\n",
+        "    pub timestamp_formats: Vec<&'static str>,\n",
+        "    pub domain: Regex,\n",
+        "    pub level: Regex,\n",
+        "    pub level_names: LevelNames,\n",
+        "}\n\n"
+    );
 
     write_out!(
         out_file_writer,
@@ -137,17 +169,30 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
 
     write_out!(
         out_file_writer,
-        "impl From<&PatternStrings> for Patterns {\n",
-        "    fn from(patterns: &PatternStrings) -> Self {\n",
-        "        Patterns {\n",
-        "            version: patterns.version.iter().map(|v| Regex::new(v).unwrap()).collect(),\n",
-        "            timestamp: patterns.timestamp.iter().map(|t| Regex::new(t).unwrap()).collect(),\n",
+        "impl From<&PlatformPatternStrings> for PlatformPatterns {\n",
+        "    fn from(patterns: &PlatformPatternStrings) -> Self {\n",
+        "        PlatformPatterns {\n",
+        "            version: Regex::new(patterns.version).unwrap(),\n",
+        "            timestamp: Regex::new(patterns.timestamp).unwrap(),\n",
         "            timestamp_formats: patterns.timestamp_formats.clone(),\n",
-        "            object: Regex::new(patterns.object).unwrap(),\n",
         "            domain: Regex::new(patterns.domain).unwrap(),\n",
+        "            level: Regex::new(patterns.level).unwrap(),\n",
+        "            level_names: patterns.level_names.clone(),\n",
+        "        }\n",
+        "    }\n",
+        "}\n\n"
     );
 
-    for (key, _) in &formats.first_key_value().unwrap().1.patterns.events {
+    write_out!(
+        out_file_writer,
+        "impl Patterns {\n",
+        "    fn from_strings(patterns: &PatternStrings, platform: &PlatformPatternStrings) -> Self {\n",
+        "        Patterns {\n",
+        "            platform: PlatformPatterns::from(platform),\n",
+        "            object: Regex::new(patterns.object).unwrap(),\n",
+    );
+
+    for (key, _) in &formats.first_key_value().unwrap().1.events {
         write_out!(
             out_file_writer,
             "            {}: Regex::new(patterns.{}).unwrap(),\n",
@@ -157,88 +202,92 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
 
     write_out!(out_file_writer, "        }\n", "    }\n", "}\n\n");
 
-    for (
-        _,
-        PatternsFile {
-            file_name,
-            patterns,
-        },
-    ) in formats.iter().skip(1)
-    {
-        // Verify that the keys are the same
-        for (key, _) in &patterns.events {
-            if !expected_keys.contains(key) {
-                panic!("File '{}' has unexpected key '{}'. Make sure all yaml files contain the same keys!", &file_name, key);
-            }
-        }
-        for key in &expected_keys {
-            if !patterns.events.contains_key(key) {
-                panic!("File '{}' is missing expected key '{}'. Make sure all yaml files contain the same keys!", &file_name, key);
-            }
-        }
-    }
+    // TODO: Remove this. We don't need to check for key consistency anymore, because each format can have unique events
+    //for (_, patterns) in formats.iter().skip(1) {
+    //    // Verify that the keys are the same
+    //    for (key, _) in &patterns.events {
+    //        if !expected_keys.contains(key) {
+    //            panic!("File '{}' has unexpected key '{}'. Make sure all yaml files contain the same keys!", &file_name, key);
+    //        }
+    //    }
+    //    for key in &expected_keys {
+    //        if !patterns.events.contains_key(key) {
+    //            panic!("File '{}' is missing expected key '{}'. Make sure all yaml files contain the same keys!", &file_name, key);
+    //        }
+    //    }
+    //}
 
     write_out!(out_file_writer, "lazy_static! {\n",);
 
-    for (
-        index,
-        (
-            _,
-            PatternsFile {
-                patterns,
-                file_name,
-            },
-        ),
-    ) in formats.iter().enumerate()
-    {
+    for (pattern_index, (_, Patterns { platforms, .. })) in formats.iter().enumerate() {
+        for (platform_index, platform) in platforms.iter().enumerate() {
+            write_out!(
+                out_file_writer,
+                "    static ref PLATFORM_{}_{}: PlatformPatternStrings = PlatformPatternStrings {{\n",
+                "        version: r#\"{}\"#,\n",
+                "        timestamp: r#\"{}\"#,\n",
+                "        timestamp_formats: vec![\n",
+                args!(pattern_index, platform_index, platform.version, platform.timestamp)
+            );
+
+            for timestamp_format in &platform.timestamp_formats {
+                write_out!(
+                    out_file_writer,
+                    "            r#\"{}\"#,\n",
+                    args!(timestamp_format)
+                );
+            }
+
+            write_out!(
+                out_file_writer,
+                "        ],\n",
+                "        domain: r#\"{}\"#,\n",
+                "        level: r#\"{}\"#,\n",
+                "        level_names: LevelNames {{\n",
+                "            error: r#\"{}\"#,\n",
+                "            warn: r#\"{}\"#,\n",
+                "            info: r#\"{}\"#,\n",
+                "            verbose: r#\"{}\"#,\n",
+                "            debug: r#\"{}\"#,\n",
+                "        }},\n",
+                "    }};\n",
+                args!(
+                    platform.domain,
+                    platform.level,
+                    platform.level_names.error,
+                    platform.level_names.warn,
+                    platform.level_names.info,
+                    platform.level_names.verbose,
+                    platform.level_names.debug
+                )
+            );
+        }
+    }
+
+    write_out!(out_file_writer, "\n");
+
+    for (index, (_, patterns)) in formats.iter().enumerate() {
         write_out!(
             out_file_writer,
-            "    /// Generated from '{}{}'\n",
             "    static ref PATTERNS_{}: PatternStrings = PatternStrings {{\n",
             "        _id: {},\n",
-            "        version: vec![\n",
-            args!(IN_PATH, file_name, index, index)
+            "        platforms: vec![\n",
+            args!(index, index)
         );
 
-        for version in &patterns.version {
-            write_out!(out_file_writer, "            r#\"{}\"#,\n", args!(version));
-        }
-
-        write_out!(
-            out_file_writer,
-            "        ],\n",
-            "        timestamp: vec![\n"
-        );
-
-        for timestamp in &patterns.timestamp {
+        for platform_index in 0..patterns.platforms.len() {
             write_out!(
                 out_file_writer,
-                "            r#\"{}\"#,\n",
-                args!(timestamp)
+                "            &*PLATFORM_{}_{},\n",
+                args!(index, platform_index)
             );
         }
 
         write_out!(
             out_file_writer,
             "        ],\n",
-            "        timestamp_formats: vec![\n",
-        );
-
-        for timestamp_format in &patterns.timestamp_formats {
-            write_out!(
-                out_file_writer,
-                "            r#\"{}\"#,\n",
-                args!(timestamp_format)
-            );
-        }
-
-        write_out!(out_file_writer, "        ],\n");
-
-        write_out!(
-            out_file_writer,
             "        object: r#\"{}\"#,\n",
-            "        domain: r#\"{}\"#,\n",
-            args!(patterns.object, patterns.domain)
+            args!(patterns.object)
         );
 
         for (key, Event { regex, .. }) in &patterns.events {
@@ -283,7 +332,7 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
     out_file_writer.write("    ]);\n}\n".as_bytes()).unwrap();
 }
 
-fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, PatternsFile>) {
+fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
     let mut out_file_writer = std::fs::OpenOptions::new()
         .truncate(true)
         .create(true)
@@ -360,7 +409,7 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, PatternsFile
         "pub enum EventType {\n"
     );
 
-    for (key, _) in &formats.first_key_value().unwrap().1.patterns.events {
+    for (key, _) in &formats.first_key_value().unwrap().1.events {
         let key = snake_to_pascal_case(key);
         write_out!(out_file_writer, "    {},\n", args!(&key));
     }
@@ -380,7 +429,7 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, PatternsFile
         "}\n\n"
     );
 
-    for (index, (_, PatternsFile { patterns, .. })) in formats.iter().enumerate() {
+    for (index, (_, patterns)) in formats.iter().enumerate() {
         write_out!(out_file_writer, "struct EventBuilder{};\n\n", args!(index));
         write_out!(
             out_file_writer,
@@ -490,12 +539,12 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, PatternsFile
     }
 }
 
-fn parse_yaml() -> BTreeMap<Compatibility, PatternsFile> {
+fn parse_yaml() -> BTreeMap<Compatibility, Patterns> {
     let in_dir = std::path::Path::new(IN_PATH);
 
     let filename_regex = Regex::new("(?<from_major>\\d+)-(?<from_minor>\\d+)-(?<from_patch>\\d+)_(?<to_major>\\d+)-(?<to_minor>\\d+)-(?<to_patch>\\d+)").unwrap();
 
-    let mut formats: BTreeMap<Compatibility, PatternsFile> = BTreeMap::new();
+    let mut formats: BTreeMap<Compatibility, Patterns> = BTreeMap::new();
 
     for (_, dir_entry) in std::fs::read_dir(&in_dir)
         .unwrap()
@@ -521,13 +570,7 @@ fn parse_yaml() -> BTreeMap<Compatibility, PatternsFile> {
         let file_contents = std::fs::read_to_string(dir_entry.path()).unwrap();
         let patterns: Patterns = serde_yaml::from_str(&file_contents).unwrap();
 
-        formats.insert(
-            compatibility,
-            PatternsFile {
-                file_name,
-                patterns,
-            },
-        );
+        formats.insert(compatibility, patterns);
     }
 
     formats
@@ -535,18 +578,28 @@ fn parse_yaml() -> BTreeMap<Compatibility, PatternsFile> {
 
 #[derive(serde::Deserialize)]
 struct Patterns {
-    version: Vec<String>,
-    timestamp: Vec<String>,
-    timestamp_formats: Vec<String>,
+    platforms: Vec<PlatformPatterns>,
     object: String,
-    domain: String,
-    level: Option<String>,
     events: BTreeMap<String, Event>,
 }
 
-struct PatternsFile {
-    file_name: String,
-    patterns: Patterns,
+#[derive(serde::Deserialize)]
+struct PlatformPatterns {
+    version: String,
+    timestamp: String,
+    timestamp_formats: Vec<String>,
+    domain: String,
+    level: String,
+    level_names: LevelNames,
+}
+
+#[derive(serde::Deserialize)]
+struct LevelNames {
+    error: String,
+    warn: String,
+    info: String,
+    verbose: String,
+    debug: String,
 }
 
 #[derive(serde::Deserialize)]

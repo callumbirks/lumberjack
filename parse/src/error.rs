@@ -50,6 +50,8 @@ pub enum Error {
     InvalidBinaryLogs(String, u64),
     #[error("Invalid varint in binary logs")]
     InvalidVarint,
+    #[error("No Level in line \"{0}\"")]
+    NoLevel(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

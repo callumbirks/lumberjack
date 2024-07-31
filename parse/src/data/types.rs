@@ -1,8 +1,9 @@
 mod object;
 
 use crate::data::util::{diesel_tosql_transmute, impl_display_debug};
+use crate::parser::regex_patterns::LevelNames;
 use crate::schema::{files, lines, objects};
-use crate::Error;
+use crate::{Error, Result};
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use diesel::{sql_types, AsExpression, FromSqlRow};
@@ -49,8 +50,6 @@ pub struct Object {
 pub struct File {
     pub id: i32,
     pub path: String,
-    pub level: Option<Level>,
-    pub timestamp: NaiveDateTime,
 }
 
 #[derive(AsExpression, FromSqlRow, Serialize, Hash, Debug, Copy, Clone, Eq, PartialEq)]
@@ -143,16 +142,14 @@ impl Ord for Line {
     }
 }
 
-impl FromStr for Level {
-    type Err = crate::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "info" => Ok(Self::Info),
-            "warning" => Ok(Self::Warning),
-            "debug" => Ok(Self::Debug),
-            "verbose" => Ok(Self::Verbose),
-            "error" => Ok(Self::Error),
+impl Level {
+    pub fn from_str(s: &str, level_names: &LevelNames) -> Result<Self> {
+        match s {
+            s if s == level_names.error => Ok(Self::Error),
+            s if s == level_names.warn => Ok(Self::Warning),
+            s if s == level_names.info => Ok(Self::Info),
+            s if s == level_names.verbose => Ok(Self::Verbose),
+            s if s == level_names.debug => Ok(Self::Debug),
             _ => Err(crate::Error::NoSuchLevel(s.to_string())),
         }
     }
@@ -161,7 +158,7 @@ impl FromStr for Level {
 impl FromStr for ObjectType {
     type Err = Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self> {
         match s {
             "DB" => Ok(ObjectType::DB),
             "Repl" | "repl" => Ok(ObjectType::Repl),
@@ -189,7 +186,7 @@ impl FromStr for ObjectType {
 impl FromStr for Domain {
     type Err = Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self> {
         match s {
             "Actor" => Ok(Domain::Actor),
             "BLIP" => Ok(Domain::BLIP),

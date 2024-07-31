@@ -21,7 +21,7 @@ pub fn open_db(path: impl AsRef<Path>, reset: bool) -> Result<SqliteConnection> 
     }
     conn.run_pending_migrations(MIGRATIONS)?;
 
-    log::info!("Database opened at \"{}\"", path);
+    log::debug!("Database opened at \"{}\"", path);
 
     Ok(conn)
 }

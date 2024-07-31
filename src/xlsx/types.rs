@@ -27,9 +27,6 @@ where
 pub struct File {
     id: i32,
     path: String,
-    #[serde(serialize_with = "option_to_string")]
-    level: Option<lumberjack_parse::data::Level>,
-    timestamp: NaiveDateTime,
 }
 
 #[derive(Serialize)]
@@ -60,8 +57,6 @@ impl From<lumberjack_parse::data::File> for File {
         File {
             id: file.id,
             path: file.path,
-            level: file.level,
-            timestamp: file.timestamp,
         }
     }
 }

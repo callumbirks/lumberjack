@@ -4,27 +4,51 @@
 #   os: OS (i.e. "Microsoft Windows 10.0.22621")
 #   build: build number (i.e. "3" for 3.1.1-3)
 #   commit: combined commit string (i.e. "d8a2f91+3050eba")
-version:
-  - "---- CouchbaseLite/(?<ver>\\d+.\\d+.\\d+).+\\((?<plat>\\S+); (?<os>.*)\\) Build/(?<build>\\d+) LiteCore/\\d+.\\d+.\\d+ \\(\\d+\\) Commit/(?<commit>\\S+) ----"
-  - "Initialized: CouchbaseLite (?<plat>\\S+) v(?<ver>\\d+.\\d+.\\d+)-(?<build>\\d+).*Commit/(?<commit>\\S+).* on \\S+; (?<os>.*);"
-  - "---- .*/(?<ver>\\d+\\.\\d+(.\\d+)?)"
-# Captures:
-#   ts: Either timestamp or full datetime (i.e. "23:39:11.925267" or "2024-05-21T23:39:11.925267")
-timestamp:
-  - "(?<ts>\\d{2}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.\\d+)"
-timestamp_formats:
-  - "%Y-%m-%dT%H:%M:%S.%6f"
+platforms:
+  # Vanilla
+  - version: "---- CouchbaseLite/(?<ver>\\d+.\\d+.\\d+).+\\((?<plat>\\S+); (?<os>.*)\\) Build/(?<build>\\d+) LiteCore/\\d+.\\d+.\\d+ \\(\\d+\\) Commit/(?<commit>\\S+) ----"
+    timestamp: "(?<ts>\\d{2}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.\\d+)"
+    timestamp_formats:
+      - "%Y-%m-%dT%H:%M:%S.%6f"
+    domain: "\\d{2}:\\d{2}:\\d{2}.\\d+ (?<domain>\\S+) "
+    level: "\\d{2}:\\d{2}:\\d{2}.\\d+ \\S+ (?<level>\\S+) "
+    level_names:
+      error: "Error"
+      warn: "Warning"
+      info: "Info"
+      verbose: "Verbose"
+      debug: "Debug"
+  # Android Logcat
+  - version: "Initialized: CouchbaseLite (?<plat>\\S+) v(?<ver>\\d+.\\d+.\\d+)-(?<build>\\d+).*Commit/(?<commit>\\S+).* on \\S+; (?<os>.*);"
+    timestamp: "(?<ts>\\d{2}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.\\d+)"
+    timestamp_formats:
+      - "%Y-%m-%dT%H:%M:%S.%6f"
+    domain: "\\d{2}:\\d{2}:\\d{2}.\\d+ (?<domain>\\S+) "
+    level: "\\d{2}:\\d{2}:\\d{2}.\\d+ \\S+ (?<level>\\S+) "
+    level_names:
+      error: "E"
+      warn: "W"
+      info: "I"
+      verbose: "V"
+      debug: "D"
+  # LiteCore CppTest binary logs
+  - version: "---- .*/(?<ver>\\d+\\.\\d+(.\\d+)?)"
+    timestamp: "(?<ts>\\d{2}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.\\d+)"
+    timestamp_formats:
+      - "%Y-%m-%dT%H:%M:%S.%6f"
+    domain: "\\d{2}:\\d{2}:\\d{2}.\\d+ (?<domain>\\S+) "
+    level: "\\d{2}:\\d{2}:\\d{2}.\\d+ \\S+ (?<level>\\S+) "
+    level_names:
+      error: "Error"
+      warn: "Warning"
+      info: "Info"
+      verbose: "Verbose"
+      debug: "Debug"
 # Captures
 #   obj: Object name (i.e. "Repl")
 #   id: Object ID
 #   parents: Parent objects string (i.e. "Repl#1/Pusher#2/")
 object: "Obj=/(apiTest/)?(?<parents>(\\w+#\\d+/)*)(?<obj>\\w+)#(?<id>\\d+)/"
-# Captures
-#   domain: Log Domain
-domain: "\\d{2}:\\d{2}:\\d{2}.\\d+ (?<domain>\\S+) "
-# Captures:
-#   level: Log level (i.e. "Info")
-level: "\\d{2}:\\d{2}:\\d{2}.\\d+ \\S+ (?<level>\\S+) "
 
 events:
   db_open:

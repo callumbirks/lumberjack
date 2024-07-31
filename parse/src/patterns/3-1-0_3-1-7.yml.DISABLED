@@ -55,7 +55,7 @@ events:
     captures:
       activity: String # Activity level
       connection_state: Int # BLIP Connection state
-      saving_checkpoint: Int # Whether the repl needs to save a checkpoint
+      saving_checkpoint: Bool # Whether the repl needs to save a checkpoint
   repl_status_update:
     regex: "pushStatus=(?<push_status>\\S+), pullStatus=(?<pull_status>\\S+), progress=(?<completed>\\d+)/(?<total>\\d+)/(?<doc_count>\\d+)"
     captures:
