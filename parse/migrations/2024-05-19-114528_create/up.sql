@@ -24,7 +24,10 @@ CREATE TABLE lines(
 CREATE TABLE files(
     -- `id` is unrelated to CBL, it's just a sequential ID.
     id        INTEGER   PRIMARY KEY NOT NULL,
-    path      TEXT      NOT NULL
+    path      TEXT      NOT NULL,
+    -- Log level
+    level     INTEGER,
+    timestamp TIMESTAMP NOT NULL
 );
 
 CREATE TABLE objects(

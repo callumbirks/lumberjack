@@ -1,10 +1,11 @@
 use std::{
     collections::HashSet,
+    ffi::OsStr,
     path::{Path, PathBuf},
     str::FromStr,
 };
 
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime, NaiveTime};
 use rayon::prelude::*;
 use regex::Regex;
 use regex_patterns::LevelNames;
@@ -51,12 +52,47 @@ impl Parser {
     fn parse_file(&self, index: usize) -> Result<ParserOutput> {
         let path = self.files[index].as_path();
         let lines = read_lines(path)?;
+        let Some(file_name) = path.file_stem().and_then(OsStr::to_str) else {
+            return Err(Error::InvalidFilename(path.to_string_lossy().to_string()));
+        };
+
+        let level = level_from_filename(file_name, &self.patterns.platform.level_names);
+        let timestamp = timestamp_from_filename(file_name);
+
+        if level.is_none() && self.patterns.platform.level.is_none() {
+            return Err(Error::CannotParse(
+                "File has no log level and the log format specifies no level regex!".to_string(),
+            ));
+        }
+
+        if timestamp.is_none() && !self.patterns.platform.full_timestamp {
+            return Err(Error::CannotParse(
+                "File has no timestamp and the log format specifies lines only have partial timestamps!".to_string(),
+            ));
+        }
+
+        let timestamp = if let Some(timestamp) = timestamp {
+            Ok(timestamp)
+        } else {
+            match parse_timestamp(
+                &lines[0],
+                &self.patterns.platform.timestamp,
+                self.patterns.platform.full_timestamp,
+                &self.patterns.platform.timestamp_formats,
+            ) {
+                Ok(Timestamp::Full(ts)) => Ok(ts),
+                Ok(Timestamp::Partial(_)) => unreachable!("It is already verified that either file has timestamp, or the format specifies full timestamps"),
+                Err(err) => Err(err)
+            }
+        };
 
         let line_count = lines.len();
 
         let file = File {
             id: index as i32,
             path: path.to_string_lossy().to_string(),
+            level,
+            timestamp: timestamp.unwrap(),
         };
 
         let (lines, objects): (Vec<Line>, HashSet<Object>) = lines
@@ -98,14 +134,24 @@ impl Parser {
         let timestamp = parse_timestamp(
             line,
             &self.patterns.platform.timestamp,
+            self.patterns.platform.full_timestamp,
             self.patterns.platform.timestamp_formats.as_slice(),
         )?;
 
-        let level = parse_level(
-            line,
-            &self.patterns.platform.level,
-            &self.patterns.platform.level_names,
-        )?;
+        let timestamp = match timestamp {
+            Timestamp::Partial(ts) => file.timestamp.date().and_time(ts),
+            Timestamp::Full(ts) => ts,
+        };
+
+        let level = if let Some(level) = file.level {
+            level
+        } else {
+            parse_level(
+                line,
+                self.patterns.platform.level.as_ref().unwrap(),
+                &self.patterns.platform.level_names,
+            )?
+        };
 
         let event = parse_event(line, &self.version, &self.patterns)?;
 
@@ -236,11 +282,18 @@ fn parse_object(line: &str, regex: &Regex) -> Result<Object> {
     })
 }
 
+#[derive(Debug, Clone)]
+enum Timestamp {
+    Partial(NaiveTime),
+    Full(NaiveDateTime),
+}
+
 fn parse_timestamp(
     line: &str,
     timestamp_regex: &Regex,
+    full_timestamp: bool,
     timestamp_formats: &[&str],
-) -> Result<NaiveDateTime> {
+) -> Result<Timestamp> {
     let Some(caps) = timestamp_regex.captures(line) else {
         return Err(Error::NoTimestamp(line.to_string()));
     };
@@ -252,12 +305,31 @@ fn parse_timestamp(
     let ts_str = ts_match.as_str();
 
     for timestamp_format in timestamp_formats {
-        let Ok(ts) = NaiveDateTime::parse_from_str(ts_str, timestamp_format) else {
-            continue;
-        };
-        return Ok(ts);
+        if full_timestamp {
+            if let Ok(ts) = NaiveDateTime::parse_from_str(ts_str, timestamp_format) {
+                return Ok(Timestamp::Full(ts));
+            }
+        } else if let Ok(ts) = NaiveTime::parse_from_str(ts_str, timestamp_format) {
+            return Ok(Timestamp::Partial(ts));
+        }
     }
     Err(Error::NoTimestamp(line.to_string()))
+}
+
+fn level_from_filename(file_name: &str, level_names: &LevelNames) -> Option<Level> {
+    let level_str = file_name.split('_').nth(1)?;
+    Level::from_str(level_str, level_names).ok()
+}
+
+fn timestamp_from_filename(file_name: &str) -> Option<NaiveDateTime> {
+    let ts_str = file_name.split('_').last()?;
+
+    let dt = ts_str
+        .parse()
+        .ok()
+        .and_then(DateTime::from_timestamp_millis)?;
+
+    Some(dt.naive_utc())
 }
 
 pub(crate) fn read_lines(file_path: &Path) -> Result<Vec<String>> {

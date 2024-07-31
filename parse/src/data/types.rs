@@ -48,6 +48,8 @@ pub struct Object {
 pub struct File {
     pub id: i32,
     pub path: String,
+    pub level: Option<Level>,
+    pub timestamp: NaiveDateTime,
 }
 
 #[derive(AsExpression, FromSqlRow, Serialize, Hash, Debug, Copy, Clone, Eq, PartialEq)]
