@@ -17,6 +17,7 @@ diesel = { workspace = true, features = [
 diesel_migrations.workspace = true
 futures.workspace = true
 lazy_static.workspace = true
+libsqlite3-sys.workspace = true
 log.workspace = true
 rangemap.workspace = true
 rayon.workspace = true

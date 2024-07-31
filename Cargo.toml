@@ -17,6 +17,7 @@ lumberjack_parse = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 diesel = { workspace = true }
 env_logger = { workspace = true }
+libsqlite3-sys = { workspace = true }
 log = { workspace = true }
 rust_xlsxwriter = { workspace = true, optional = true, features = [
     "chrono",
@@ -48,11 +49,12 @@ enum-iterator = "2.1"
 futures = "0.3"
 grep = "0.3"
 lazy_static = "1.4"
+libsqlite3-sys = { version = "0.29.0", features = ["bundled"] }
 log = "0.4"
 rangemap = "1.5"
 rayon = "1.10.0"
 regex = "1.10"
-rust_xlsxwriter = { version = "0.69.0" }
+rust_xlsxwriter = "0.69.0"
 semver = "1.0"
 serde = "1.0"
 serde_json = "1.0"
