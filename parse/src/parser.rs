@@ -107,23 +107,11 @@ impl Parser {
             &self.patterns.platform.level_names,
         )?;
 
-        let line = {
-            let object_end = self
-                .patterns
-                .object
-                .captures(line)
-                .unwrap()
-                .name("id")
-                .unwrap()
-                .end();
-            line.split_at(object_end + 2).1
-        };
-
         let event = parse_event(line, &self.version, &self.patterns)?;
 
         let line = Line {
             file_id: file.id,
-            line_num: line_num as i64,
+            line_num: line_num as i32,
             level,
             timestamp,
             domain,
@@ -157,10 +145,17 @@ impl Parser {
                     }
                 })
                 .collect()
-        } else if regex_patterns::patterns_for_file(&path).is_ok() {
-            vec![path.to_path_buf()]
         } else {
-            vec![]
+            match regex_patterns::patterns_for_file(path) {
+                Err(err) => {
+                    log::error!("Error validating file {:?}: {}", path, err);
+                    vec![]
+                }
+                Ok((_, version)) => {
+                    log::debug!("Found valid log file {:?} with version {}", path, version);
+                    vec![path.to_path_buf()]
+                }
+            }
         };
         Ok(files)
     }

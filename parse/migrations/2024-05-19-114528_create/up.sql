@@ -1,6 +1,6 @@
 CREATE TABLE lines(
     file_id    INTEGER   NOT NULL,
-    line_num   BIGINT    NOT NULL,
+    line_num   INTEGER   NOT NULL,
     -- Log Level (Info, Verbose, etc.)
     level      INTEGER   NOT NULL,
     timestamp  TIMESTAMP NOT NULL,

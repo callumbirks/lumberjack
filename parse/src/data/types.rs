@@ -23,7 +23,7 @@ mod events {
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct Line {
     pub file_id: i32,
-    pub line_num: i64,
+    pub line_num: i32,
     pub level: Level,
     pub timestamp: NaiveDateTime,
     pub domain: Domain,

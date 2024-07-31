@@ -364,7 +364,7 @@ trait ReadByte: Read {
     }
 }
 
-impl<T: Read> ReadByte for T {}
+impl<T: Read + ?Sized> ReadByte for T {}
 
 mod varint {
     use crate::decoder::ReadByte;
@@ -375,7 +375,7 @@ mod varint {
 
     pub fn read<R>(reader: &mut R) -> Result<u64>
     where
-        R: Read,
+        R: Read + ?Sized,
     {
         let mut res: u64 = 0;
 
@@ -388,5 +388,51 @@ mod varint {
         }
 
         Err(Error::InvalidVarint)
+    }
+
+    #[cfg(test)]
+    mod test {
+        use crate::decoder::varint;
+        use std::io::{BufReader, Cursor, Read};
+
+        #[allow(clippy::cast_possible_truncation)]
+        pub fn write(out: &mut [u8], value: u64) -> usize {
+            let mut value = value;
+            let mut bytes_written: usize = 0;
+            while value >= 0x80 {
+                out[bytes_written] = (value & 0xFF) as u8 | 0x80;
+                value >>= 7;
+                bytes_written += 1;
+            }
+            out[bytes_written] = value as u8;
+            bytes_written + 1
+        }
+
+        // The number of bytes required to write a varint with the given value
+        pub const fn size_required(value: u64) -> usize {
+            if value == 0 {
+                1
+            } else {
+                (63 - value.leading_zeros()) as usize / 7 + 1
+            }
+        }
+
+        fn varint_test(val: u64) {
+            let size_required = size_required(val);
+            let mut buf: Vec<u8> = vec![0; size_required];
+            let _written = write(&mut buf, val);
+            println!("Wrote varint {:02x?}", &buf);
+            let mut cursor = Cursor::new(buf);
+            let out_val = varint::read(&mut cursor).unwrap();
+            assert_eq!(val, out_val);
+        }
+
+        #[test]
+        fn varint() {
+            varint_test(8_704_268);
+            varint_test(100_000);
+            varint_test(603);
+            varint_test(87);
+        }
     }
 }

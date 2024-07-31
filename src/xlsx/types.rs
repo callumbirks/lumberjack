@@ -21,7 +21,7 @@ pub struct File {
 #[derive(Serialize)]
 pub struct Line {
     file_id: i32,
-    line_num: i64,
+    line_num: i32,
     #[serde(serialize_with = "serialize_to_string")]
     level: lumberjack_parse::data::Level,
     timestamp: NaiveDateTime,

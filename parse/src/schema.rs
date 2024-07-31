@@ -10,7 +10,7 @@ diesel::table! {
 diesel::table! {
     lines (file_id, line_num) {
         file_id -> Integer,
-        line_num -> BigInt,
+        line_num -> Integer,
         level -> Integer,
         timestamp -> Timestamp,
         domain -> Integer,
