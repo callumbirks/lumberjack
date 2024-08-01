@@ -87,8 +87,18 @@ events:
     captures:
       handled: Int # Number of handled revisions
       pending: Int # Number of pending revisions
+  incoming_rev_received:
+    regex: "\\{IncomingRev#\\d+\\} \\{Coll#\\d+\\} Received revision '(?<doc_id>\\S+)' #(?<rev_id>\\S+) \\(seq '(?<sequence>\\d+)'\\)"
+    captures:
+      doc_id: String # Document ID
+      rev_id: String # Revision ID
+      sequence: Int # Sequence number
+  inserter_inserting_revs:
+    regex: "\\{Inserter#\\d+\\} \\{Coll#\\d+\\} Inserting (?<num_revs>\\d+) revs:"
+    captures:
+      num_revs: Int # Number of revisions
   inserter_insert_rev:
-    regex: "\\{'(?<doc_id>\\S+) \\((?<collection>\\S+)\\)' #(?<rev_id>\\S+) <- (?<rev_history>\\S+)\\} seq (?<sequence>\\d+)"
+    regex: "\\{'(?<doc_id>\\S+) \\((?<collection>\\S+)\\)' #(?<rev_id>\\S+) <- (?<rev_history>\\S*)\\} seq (?<sequence>\\d+)"
     captures:
       doc_id: String # Document ID
       collection: String # Either 'scope.collection', or '_default' for default collection
@@ -136,3 +146,7 @@ events:
       no_reply: Char # Whether the message expects no reply
       compressed: Char # Whether the message is compressed
       length: Int # Length of the message
+  socket_received_message:
+    regex: "\\{C4SocketImpl#\\d+\\} Received (?<length>\\d+)-byte message"
+    captures:
+      length: Int # Length of the message in bytes

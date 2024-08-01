@@ -32,26 +32,26 @@ pub enum Error {
     NoSuchLevel(String),
     #[error("No matches")]
     NoMatches,
-    #[error("No event in line \"{0}\"")]
-    NoEvent(String),
+    #[error("No event in line")]
+    NoEvent,
     #[error("No parseable timestamp in line \"{0}\"")]
     NoTimestamp(String),
     #[error("Unknown object '{0}'")]
     UnknownObject(String),
-    #[error("No domain in line \"{0}\"")]
-    NoDomain(String),
+    #[error("No domain in line")]
+    NoDomain,
     #[error("Unknown domain \"{0}\"")]
     UnknownDomain(String),
-    #[error("No object in line \"{0}\"")]
-    NoObject(String),
+    #[error("No object in line")]
+    NoObject,
     #[error("No such value {0} in enum {1}")]
     InvalidEnumValue(i32, &'static str),
     #[error("Invalid binary logs: '{0}' at {1}")]
     InvalidBinaryLogs(String, u64),
     #[error("Invalid varint in binary logs")]
     InvalidVarint,
-    #[error("No Level in line \"{0}\"")]
-    NoLevel(String),
+    #[error("No Level in line")]
+    NoLevel,
     #[error("Cannot parse: {0}")]
     CannotParse(String),
 }

@@ -1,14 +1,15 @@
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     ffi::OsStr,
     path::{Path, PathBuf},
     str::FromStr,
 };
 
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, TimeDelta};
+use lazy_static::lazy_static;
 use rayon::prelude::*;
 use regex::Regex;
-use regex_patterns::LevelNames;
+use regex_patterns::{LevelNames, Patterns};
 
 use crate::{
     data::{parse_event, Domain, File, Level, Line, Object, ObjectType},
@@ -95,54 +96,69 @@ impl Parser {
             timestamp: timestamp.unwrap(),
         };
 
+        let result: Vec<LineResult> = if self.patterns.platform.full_timestamp {
+            // For full timestamp, we can parse all lines in parallel.
+            lines
+                .into_par_iter()
+                .enumerate()
+                .map(|(i, line)| {
+                    let res = self.parse_line(&line, i as u64, &file, file.timestamp.date());
+
+                    let Ok((line, object)) = res else {
+                        let err = res.unwrap_err();
+                        let reduced_line = reduce_line(&line, &self.patterns);
+                        return LineResult::Err((err, reduced_line));
+                    };
+
+                    LineResult::Ok((line, object))
+                })
+                .collect()
+        } else {
+            // For partial timestamp, we must parse lines in order, to account for rollover of days.
+            let mut additional_days = TimeDelta::days(0);
+            lines
+                .into_iter()
+                .enumerate()
+                .map(|(i, line)| {
+                    let res = self.parse_line(
+                        &line,
+                        i as u64,
+                        &file,
+                        file.timestamp.date() + additional_days,
+                    );
+
+                    let Ok((mut line, object)) = res else {
+                        let err = res.unwrap_err();
+                        let reduced_line = reduce_line(&line, &self.patterns);
+                        return LineResult::Err((err, reduced_line));
+                    };
+
+                    if line.timestamp - file.timestamp < additional_days {
+                        additional_days += TimeDelta::days(1);
+                        line.timestamp += TimeDelta::days(1);
+                    }
+
+                    LineResult::Ok((line, object))
+                })
+                .collect()
+        };
+
+        let (ok_results, err_results): (Vec<LineResult>, Vec<LineResult>) =
+            result.into_iter().partition(LineResult::is_ok);
+
         let (lines, objects): (Vec<Line>, HashSet<Object>) =
-            if self.patterns.platform.full_timestamp {
-                // For full timestamp, we can parse all lines in parallel
-                lines
-                    .into_par_iter()
-                    .enumerate()
-                    .map(|(i, line)| {
-                        let res = self.parse_line(&line, i as u64, &file, file.timestamp.date());
+            ok_results.into_iter().map(LineResult::unwrap).unzip();
 
-                        let Ok((line, object)) = res else {
-                            let err = res.unwrap_err();
-                            log::trace!("Line parsing error: {}", &err);
-                            return Err(err);
-                        };
+        let mut errors: HashMap<String, (Error, usize)> = HashMap::new();
 
-                        Ok((line, object))
-                    })
-                    .filter_map(|res| res.ok())
-                    .unzip()
-            } else {
-                let mut additional_days = TimeDelta::days(0);
-                lines
-                    .into_iter()
-                    .enumerate()
-                    .map(|(i, line)| {
-                        let res = self.parse_line(
-                            &line,
-                            i as u64,
-                            &file,
-                            file.timestamp.date() + additional_days,
-                        );
+        for (err, line) in err_results.into_iter().map(LineResult::unwrap_err) {
+            let entry = errors.entry(line).or_insert((err, 0));
+            entry.1 += 1;
+        }
 
-                        let Ok((mut line, object)) = res else {
-                            let err = res.unwrap_err();
-                            log::trace!("Line parsing error: {}", &err);
-                            return Err(err);
-                        };
-
-                        if line.timestamp - file.timestamp < additional_days {
-                            additional_days += TimeDelta::days(1);
-                            line.timestamp += TimeDelta::days(1);
-                        }
-
-                        Ok((line, object))
-                    })
-                    .filter_map(|res| res.ok())
-                    .unzip()
-            };
+        for (line, (err, count)) in errors {
+            log::trace!("Failed to parse line {} times: '{}' '{}'", count, err, line);
+        }
 
         log::debug!(
             "Parsed '{}' with {} lines ({} lines skipped)",
@@ -245,6 +261,32 @@ impl Parser {
     }
 }
 
+enum LineResult {
+    Ok((Line, Object)),
+    /// Error and reduced line
+    Err((Error, String)),
+}
+
+impl LineResult {
+    fn is_ok(&self) -> bool {
+        matches!(self, LineResult::Ok(_))
+    }
+
+    fn unwrap(self) -> (Line, Object) {
+        match self {
+            LineResult::Ok(result) => result,
+            LineResult::Err(_) => panic!("Called unwrap on LineResult::Err"),
+        }
+    }
+
+    fn unwrap_err(self) -> (Error, String) {
+        match self {
+            LineResult::Err(result) => result,
+            LineResult::Ok(_) => panic!("Called unwrap_err on LineResult::Ok"),
+        }
+    }
+}
+
 struct ParserIter<'a> {
     parser: &'a Parser,
     index: usize,
@@ -274,38 +316,32 @@ impl<'a> Iterator for ParserIter<'a> {
 
 fn parse_domain(line: &str, regex: &Regex) -> Result<Domain> {
     let Some(caps) = regex.captures(line) else {
-        return Err(Error::NoDomain(line.to_string()));
+        return Err(Error::NoDomain);
     };
 
-    let domain_str = caps
-        .name("domain")
-        .ok_or(Error::NoDomain(line.to_string()))?
-        .as_str();
+    let domain_str = caps.name("domain").ok_or(Error::NoDomain)?.as_str();
 
     Domain::from_str(domain_str)
 }
 
 fn parse_level(line: &str, regex: &Regex, level_names: &LevelNames) -> Result<Level> {
     let Some(caps) = regex.captures(line) else {
-        return Err(Error::NoLevel(line.to_string()));
+        return Err(Error::NoLevel);
     };
 
-    let level_str = caps
-        .name("level")
-        .ok_or(Error::NoLevel(line.to_string()))?
-        .as_str();
+    let level_str = caps.name("level").ok_or(Error::NoLevel)?.as_str();
 
     Level::from_str(level_str, level_names)
 }
 
 fn parse_object(line: &str, regex: &Regex) -> Result<Object> {
     let Some(caps) = regex.captures(line) else {
-        return Err(Error::NoObject(line.to_string()));
+        return Err(Error::NoObject);
     };
 
     let (obj_match, id_match) = (
-        caps.name("obj").ok_or(Error::NoObject(line.to_string()))?,
-        caps.name("id").ok_or(Error::NoObject(line.to_string()))?,
+        caps.name("obj").ok_or(Error::NoObject)?,
+        caps.name("id").ok_or(Error::NoObject)?,
     );
 
     let (obj_str, id_str) = (obj_match.as_str(), id_match.as_str());
@@ -352,6 +388,66 @@ fn parse_timestamp(
         }
     }
     Err(Error::NoTimestamp(line.to_string()))
+}
+
+lazy_static! {
+    static ref DOCID_REGEX: Regex = Regex::new(r#"\w+::\w{8}-\w{4}-\w{4}-\w{4}-\w{12}"#).unwrap();
+    static ref REVID_REGEX: Regex = Regex::new("(#)?\\d+-\\w{32}").unwrap();
+    static ref DICT_REGEX: Regex = Regex::new(r#"\{(\W\w+\W:.*,)*\W\w+\W:.*"#).unwrap();
+    static ref QUERY_REGEX: Regex = Regex::new(r#"SELECT fl_result\(.*FROM.*"#).unwrap();
+    static ref DIGIT_REGEX: Regex = Regex::new("\\d+").unwrap();
+}
+
+fn reduce_line(line: &str, patterns: &Patterns) -> String {
+    let domain_mat = patterns.platform.domain.find(line);
+
+    let line = if let Some(mat) = domain_mat {
+        line.split_at(mat.end()).1
+    } else {
+        line
+    };
+
+    // Strip any dictionaries from the line
+    let dict_mat = DICT_REGEX.find(line);
+    let line = if let Some(mat) = dict_mat {
+        let start = &line[..mat.start()];
+        format!("{}{{DICT}}", start)
+    } else {
+        line.to_string()
+    };
+
+    let query_mat = QUERY_REGEX.find(&line);
+    let line = if let Some(mat) = query_mat {
+        let start = &line[..mat.start()];
+        format!("{}{{QUERY}}", start)
+    } else {
+        line.to_string()
+    };
+
+    let is_doc_id = |word: &str| DOCID_REGEX.is_match(word);
+    let is_rev_id = |word: &str| REVID_REGEX.is_match(word);
+
+    line.split_whitespace()
+        .map(|word| {
+            if is_doc_id(word) {
+                "{DOCID}".to_string()
+            } else if is_rev_id(word) {
+                "{REVID}".to_string()
+            } else if word.chars().all(|c| c.is_ascii_hexdigit())
+                && !word.chars().all(|c| c.is_ascii_digit())
+            {
+                "{HEX}".to_string()
+            } else if word.chars().any(|c| c.is_ascii_digit()) {
+                DIGIT_REGEX.replace_all(word, "{NUMBER}").to_string()
+            } else {
+                word.to_string()
+            }
+        })
+        .fold(String::new(), |mut acc, word| {
+            acc.push_str(&word);
+            acc.push(' ');
+            acc
+        })
 }
 
 fn level_from_filename(file_name: &str, level_names: &LevelNames) -> Option<Level> {

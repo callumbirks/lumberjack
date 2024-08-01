@@ -520,7 +520,7 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
 
         write_out!(
             out_file_writer,
-            "        Err(Error::NoEvent(line.to_string()))\n",
+            "        Err(Error::NoEvent)\n",
             "    }\n",
             "}\n"
         );
