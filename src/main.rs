@@ -99,7 +99,7 @@ fn resolve_args(args: &Args) -> Options {
                     .parent()
                     .map(Path::to_path_buf)
                     .unwrap_or(current_dir.clone()),
-                sqlite_file_name(&out_path),
+                sqlite_file_name(out_path),
             )
         }
     } else {

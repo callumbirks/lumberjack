@@ -1,9 +1,4 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    fmt::Display,
-    io::Write,
-    path::Path,
-};
+use std::{collections::BTreeMap, fmt::Display, io::Write, path::Path};
 
 use regex::Regex;
 use util::write_out;
@@ -30,8 +25,6 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
         .write(true)
         .open(out_path)
         .unwrap();
-
-    let mut expected_keys: BTreeSet<String> = BTreeSet::new();
 
     write_out!(
         out_file_writer,
