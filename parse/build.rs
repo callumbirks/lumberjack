@@ -41,7 +41,8 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
         "use rangemap::RangeMap;\n",
         "use regex::Regex;\n",
         "use semver::Version;\n",
-        "use std::path::Path;\n\n",
+        "use std::path::Path;\n",
+        "use std::collections::HashMap;\n\n",
     );
 
     write_out!(
@@ -96,13 +97,9 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
         "    _id: usize,\n",
         "    pub platforms: Vec<&'static PlatformPatternStrings>,\n",
         "    pub object: &'static str,\n",
+        "    pub events: HashMap<&'static str, &'static str>,\n",
+        "}\n\n",
     );
-
-    for key in formats.first_key_value().unwrap().1.events.keys() {
-        write_out!(out_file_writer, "    pub {}: &'static str,\n", args!(key));
-    }
-
-    write_out!(out_file_writer, "}\n\n");
 
     write_out!(
         out_file_writer,
@@ -136,14 +133,9 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
         "pub struct Patterns {\n",
         "    pub platform: PlatformPatterns,\n",
         "    pub object: Regex,\n",
+        "    pub events: HashMap<&'static str, Regex>,\n",
+        "}\n\n",
     );
-
-    for key in formats.first_key_value().unwrap().1.events.keys() {
-        expected_keys.insert(key.clone());
-        write_out!(out_file_writer, "    pub {}: Regex,\n", args!(key));
-    }
-
-    write_out!(out_file_writer, "}\n\n");
 
     write_out!(
         out_file_writer,
@@ -193,32 +185,11 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
         "        Patterns {\n",
         "            platform: PlatformPatterns::from(platform),\n",
         "            object: Regex::new(patterns.object).unwrap(),\n",
+        "            events: patterns.events.iter().map(|(k, v)| (*k, Regex::new(v).unwrap())).collect(),\n",
+        "        }\n",
+        "    }\n",
+        "}\n\n",
     );
-
-    for key in formats.first_key_value().unwrap().1.events.keys() {
-        write_out!(
-            out_file_writer,
-            "            {}: Regex::new(patterns.{}).unwrap(),\n",
-            args!(key, key)
-        );
-    }
-
-    write_out!(out_file_writer, "        }\n", "    }\n", "}\n\n");
-
-    // TODO: Remove this. We don't need to check for key consistency anymore, because each format can have unique events
-    //for (_, patterns) in formats.iter().skip(1) {
-    //    // Verify that the keys are the same
-    //    for (key, _) in &patterns.events {
-    //        if !expected_keys.contains(key) {
-    //            panic!("File '{}' has unexpected key '{}'. Make sure all yaml files contain the same keys!", &file_name, key);
-    //        }
-    //    }
-    //    for key in &expected_keys {
-    //        if !patterns.events.contains_key(key) {
-    //            panic!("File '{}' is missing expected key '{}'. Make sure all yaml files contain the same keys!", &file_name, key);
-    //        }
-    //    }
-    //}
 
     write_out!(out_file_writer, "lazy_static! {\n",);
 
@@ -303,18 +274,19 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
             out_file_writer,
             "        ],\n",
             "        object: r#\"{}\"#,\n",
+            "        events: HashMap::from([\n",
             args!(patterns.object)
         );
 
         for (key, Event { regex, .. }) in &patterns.events {
             write_out!(
                 out_file_writer,
-                "        {}: r#\"{}\"#,\n",
+                "            (\"{}\", r#\"{}\"#),\n",
                 args!(key, regex)
             );
         }
 
-        write_out!(out_file_writer, "    };\n");
+        write_out!(out_file_writer, "      ]),\n", "    };\n");
     }
 
     write_out!(out_file_writer, "}\n\n");
@@ -476,7 +448,7 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
             if let Some(captures) = captures {
                 write_out!(
                     out_file_writer,
-                    "        if let Some(captures) = patterns.{}.captures(line) {{\n",
+                    "        if let Some(captures) = patterns.events[\"{}\"].captures(line) {{\n",
                     "            let (",
                     args!(event_key)
                 );
@@ -535,7 +507,7 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
             } else {
                 write_out!(
                     out_file_writer,
-                    "        if patterns.{}.is_match(line) {{\n",
+                    "        if patterns.events[\"{}\"].is_match(line) {{\n",
                     "            return Ok(Event {{\n",
                     "                event_type: EventType::{},\n",
                     "                data: None\n",

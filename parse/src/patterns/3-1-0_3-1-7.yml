@@ -43,6 +43,18 @@ events:
       doc_id: String # Document ID
       rev_id: String # Revision ID
       sequence: Int # Sequence number
+  connection_receiving_message:
+    regex: "\\{Connection#\\d+\\} Receiving '(?<message>\\w+)' (?<message_type>\\w+) #(?<id>\\d+)"
+    captures:
+      message: String # Message name
+      message_type: String # Message type
+      id: Int # Message ID
+  connection_received_message:
+    regex: "\\{Connection#\\d+\\} Finished receiving '(?<message>\\w+)' (?<message_type>\\w+) #(?<id>\\d+)"
+    captures:
+      message: String # Message name
+      message_type: String # Message type
+      id: Int # Message ID
   housekeeper_monitor:
     regex: "Housekeeper: opening background database"
   repl_conflict_scan:
@@ -71,7 +83,7 @@ events:
       mode: String # Replication mode ('push' or 'pull')
       sequence: Int # Sequence number
   puller_handled_revs:
-    regex: "(?<handled>\\d+) revs were provisionally handled; down to (?<pending>\\d+) revs"
+    regex: "\\{Puller#\\d+\\} (?<handled>\\d+) revs were provisionally handled; down to (?<pending>\\d+) active"
     captures:
       handled: Int # Number of handled revisions
       pending: Int # Number of pending revisions

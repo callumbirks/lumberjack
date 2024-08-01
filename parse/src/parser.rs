@@ -145,10 +145,10 @@ impl Parser {
             };
 
         log::debug!(
-            "Parsed {}, skipped {} lines from {}",
+            "Parsed '{}' with {} lines ({} lines skipped)",
+            &file.path,
             lines.len(),
             line_count - lines.len(),
-            &file.path
         );
 
         Ok(ParserOutput {

@@ -28,11 +28,6 @@ pub fn parse(in_path: &Path, out_path: &Path) -> Result<()> {
         total_files += 1;
         total_lines += result.lines.len() as u64;
         total_objects += result.objects.len() as u64;
-        log::debug!(
-            "Inserting 1 file, {} lines, {} objects into the database",
-            result.lines.len(),
-            result.objects.len(),
-        );
         let objects: Vec<Object> = result.objects.into_iter().collect();
         conn.transaction(|tx| {
             diesel::insert_or_ignore_into(schema::files::table)
