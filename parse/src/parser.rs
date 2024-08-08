@@ -1,13 +1,11 @@
 use std::{
-    collections::HashMap,
     ffi::OsStr,
     path::{Path, PathBuf},
-    time::UNIX_EPOCH,
 };
 
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, TimeDelta};
 use lazy_static::lazy_static;
-use rayon::prelude::*;
+use rayon::{iter::Either, prelude::*};
 use regex::Regex;
 use regex_patterns::{LevelNames, Patterns};
 
@@ -95,7 +93,7 @@ impl Parser {
             timestamp: timestamp.unwrap(),
         };
 
-        let result: Vec<LineResult> = if self.patterns.platform.full_timestamp {
+        let results: Vec<LineResult> =
             // For full timestamp, we can parse all lines in parallel.
             lines
                 .into_par_iter()
@@ -108,7 +106,10 @@ impl Parser {
                     if log::log_enabled!(log::Level::Trace) {
                         let reduced_line = reduce_line(&line, &self.patterns);
                         return LineResult::Err((err, reduced_line));
-                    };
+                    } else {
+                        return LineResult::Err((err, "".to_string()))
+                    }
+                };
 
                 if self.patterns.platform.full_timestamp {
                     LineResult::Ok(line)
@@ -118,6 +119,8 @@ impl Parser {
                     } else {
                         LineResult::Ok(line)
                     }
+                }
+                }).collect();
 
         let (mut ok_results, results): (Vec<Line>, Vec<LineResult>) =
             results.into_par_iter().partition_map(|lr| match lr {
@@ -151,7 +154,7 @@ impl Parser {
             .count();
 
         log::debug!(
-            "Parsed '{}' with {} lines ({} lines skipped)",
+            "Parsed '{}' with {} lines ({} CBL lines skipped due to error, {} non-CBL lines ignored)",
             &file.path,
             ok_results.len(),
             line_count - ok_results.len() - non_cbl_count,
@@ -256,26 +259,6 @@ enum LineResult {
     Rollover(Line),
     /// Error and reduced line
     Err((Error, String)),
-}
-
-impl LineResult {
-    fn is_ok(&self) -> bool {
-        matches!(self, LineResult::Ok(_))
-    }
-
-    fn unwrap(self) -> (Line, Object) {
-        match self {
-            LineResult::Ok(result) => result,
-            LineResult::Err(_) => panic!("Called unwrap on LineResult::Err"),
-        }
-    }
-
-    fn unwrap_err(self) -> (Error, String) {
-        match self {
-            LineResult::Err(result) => result,
-            LineResult::Ok(_) => panic!("Called unwrap_err on LineResult::Ok"),
-        }
-    }
 }
 
 struct ParserIter<'a> {
@@ -387,6 +370,7 @@ lazy_static! {
     static ref DICT_REGEX: Regex = Regex::new(r#"\{(\W\w+\W:.*,)*\W\w+\W:.*"#).unwrap();
     static ref QUERY_REGEX: Regex = Regex::new(r#"SELECT fl_result\(.*FROM.*"#).unwrap();
     static ref DIGIT_REGEX: Regex = Regex::new("\\d+").unwrap();
+    static ref QUOTE_REGEX: Regex = Regex::new(r#"^'.*'"#).unwrap();
 }
 
 fn reduce_line(line: &str, patterns: &Patterns) -> String {
@@ -437,6 +421,8 @@ fn reduce_line(line: &str, patterns: &Patterns) -> String {
                 "{DOCID}".to_string()
             } else if is_rev_id(word) {
                 "{REVID}".to_string()
+            } else if is_quoted(word) {
+                "{QUOTED}".to_string()
             } else if word.chars().all(|c| c.is_ascii_hexdigit())
                 && !word.chars().all(|c| c.is_ascii_digit())
             {
