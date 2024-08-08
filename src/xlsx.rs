@@ -26,12 +26,6 @@ pub fn write(path: impl AsRef<Path>, mut db: SqliteConnection) -> crate::Result<
     let lines: Vec<types::Line> = lines.into_iter().map(types::Line::from).collect();
     writer.write_worksheet_serializable("Lines", &lines)?;
 
-    let objects = lumberjack_parse::schema::objects::table
-        .select(lumberjack_parse::data::Object::as_select())
-        .load(&mut db)?;
-    let objects: Vec<types::Object> = objects.into_iter().map(types::Object::from).collect();
-    writer.write_worksheet_serializable("Objects", &objects)?;
-
     let files = lumberjack_parse::schema::files::table
         .select(lumberjack_parse::data::File::as_select())
         .load(&mut db)?;

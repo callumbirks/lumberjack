@@ -7,7 +7,7 @@
 platforms:
   # Vanilla
   - version: "---- CouchbaseLite/(?<ver>\\d+.\\d+.\\d+).+\\((?<plat>\\S+); (?<os>.*)\\) Build/(?<build>\\d+) LiteCore/\\d+.\\d+.\\d+ \\(\\d+\\) Commit/(?<commit>\\S+) ----"
-    timestamp: "(?<ts>\\d{2}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.\\d+)"
+    timestamp: "(?<ts>\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.\\d+)"
     full_timestamp: true
     timestamp_formats:
       - "%Y-%m-%dT%H:%M:%S.%6f"
@@ -19,39 +19,23 @@ platforms:
       info: "Info"
       verbose: "Verbose"
       debug: "Debug"
-  # Android Logcat
-  - version: "Initialized: CouchbaseLite (?<plat>\\S+) v(?<ver>\\d+.\\d+.\\d+)-(?<build>\\d+).*Commit/(?<commit>\\S+).* on \\S+; (?<os>.*);"
-    timestamp: "(?<ts>\\d{2}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.\\d+)"
+  # LiteCore CppTest
+  - version: "This is LiteCore (EE|CE) built from release/(?<ver>\\d+\\.\\d+(\\.\\d+)?) branch"
+    timestamp: "(?<ts>\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.\\d+)"
     full_timestamp: true
     timestamp_formats:
       - "%Y-%m-%dT%H:%M:%S.%6f"
     domain: "\\d{2}:\\d{2}:\\d{2}.\\d+ (?<domain>\\S+) "
     level: "\\d{2}:\\d{2}:\\d{2}.\\d+ \\S+ (?<level>\\S+) "
     level_names:
-      error: "E"
-      warn: "W"
-      info: "I"
-      verbose: "V"
-      debug: "D"
-  # LiteCore CppTest binary logs
-  - version: "---- .*/(?<ver>\\d+\\.\\d+(.\\d+)?)"
-    timestamp: "(?<ts>\\d{2}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.\\d+)"
-    full_timestamp: true
-    timestamp_formats:
-      - "%Y-%m-%dT%H:%M:%S.%6f"
-    domain: "\\d{2}:\\d{2}:\\d{2}.\\d+ (?<domain>\\S+) "
-    level: "\\d{2}:\\d{2}:\\d{2}.\\d+ \\S+ (?<level>\\S+) "
-    level_names:
-      error: "Error"
-      warn: "Warning"
+      error: "ERROR"
+      warn: "WARNING"
       info: "Info"
       verbose: "Verbose"
       debug: "Debug"
 # Captures
-#   obj: Object name (i.e. "Repl")
-#   id: Object ID
-#   parents: Parent objects string (i.e. "Repl#1/Pusher#2/")
-object: "Obj=/(apiTest/)?(?<parents>(\\w+#\\d+/)*)(?<obj>\\w+)#(?<id>\\d+)/"
+#   obj: Object path (i.e. "/Repl#76/Puller#123/")
+object: "Obj=(?<obj>(/\\w+)?(/\\w+#\\d+)+)/"
 
 events:
   db_open:
@@ -73,6 +57,18 @@ events:
       doc_id: String # Document ID
       rev_id: String # Revision ID
       sequence: Int # Sequence number
+  db_deleted:
+    regex: "Deleting database file (?<path>\\S+) \\(with "
+    captures:
+      path: String # Database file path
+  datafile_shared_open:
+    regex: "/Shared#\\d+/ Path=(?<path>\\S+) Instantiated"
+    captures:
+      path: String # Database (SQLite file) path
+  doc_read_rev_tree:
+    regex: "Need to read rev-tree of doc '(?<doc_id>\\S+)'"
+    captures:
+      doc_id: String # Document ID
   housekeeper_monitor:
     regex: "Housekeeper: opening background database"
   repl_conflict_scan:
@@ -80,7 +76,14 @@ events:
     captures:
       num_conflicts: Int # Number of conflicts
   repl_connected:
-    regex: "Connected!"
+    regex: "/Repl#\\d+/ Connected!"
+  repl_closed:
+    regex: "/Repl#\\d+/ Connection closed with (?<reason>.*): \"(?<message>.*)\" \\(state=(?<from_state>\\d+)->(?<to_state>(-)?\\d+)\\)"
+    captures:
+      reason: String # Reason for closure
+      message: String # Close message
+      from_state: Int # From state (integer enum == Connection::State)
+      to_state: Int # To state (integer enum == Connection::State)
   repl_activity_update:
     regex: "activityLevel=(?<activity>\\S+): connectionState=(?<connection_state>\\d), savingChkpt=(?<saving_checkpoint>\\d+)"
     captures:
@@ -95,16 +98,90 @@ events:
       completed: Int # Number of completed items
       total: Int # Total number of items
       doc_count: Int # Number of documents
-  subrepl_start:
-    regex: "Starting (?<mode>\\w+) from remote seq '(?<sequence>\\d+)'"
+  repl_save_local_checkpoint:
+    regex: "Saved local checkpoint '(?<checkpoint_id>\\S+)': \\{\"time\":(?<time>\\d+),\"local\":(?<checkpoint>\\d+)\\}"
     captures:
-      mode: String # Replication mode ('push' or 'pull')
+      checkpoint_id: String # Checkpoint doc ID
+      time: Int # Time
+      checkpoint: Int # Checkpoint
+  repl_save_remote_checkpoint:
+    regex: "Saved remote checkpoint '(?<checkpoint_id>\\S+)' as rev='(?<checkpoint_rev_id>\\S+)'"
+    captures:
+      checkpoint_id: String # Checkpoint doc ID
+      checkpoint_rev_id: String # Checkpoint revision ID
+  repl_request_checkpoint:
+    regex: "Request to get peer checkpoint '(?<checkpoint_id>\\S+)' for collection"
+    captures:
+      checkpoint_id: String # Checkpoint ID
+  repl_document_ended:
+    regex: "documentEnded (?<doc_id>\\S+) (?<rev_id>\\S+) flags=(?<flags>\\d+) \\((?<error_domain>\\d+)/(?<error_code>\\d+)\\)"
+    captures:
+      doc_id: String # Document ID
+      rev_id: String # Revision ID
+      flags: Int # Rev Flags
+      error_domain: Int # Error domain
+      error_code: Int # Error code
+  repl_told_stop:
+    regex: "/Repl#\\d+/ Told to stop!"
+  puller_start:
+    regex: "Starting pull from remote seq '(?<sequence>\\d+)'"
+    captures:
+      sequence: Int # Sequence number
+  pusher_start:
+    regex: "Starting (continuous )?push from local seq #(?<sequence>\\d+)"
+    captures:
+      sequence: Int # Sequence number
+  pusher_caught_up:
+    regex: "Coll=(?<collection_id>\\d+) Caught up, at lastSequence #(?<sequence>\\d+)"
+    captures:
+      collection_id: Int # Collection ID
+      sequence: Int # Sequence number
+  pusher_subchanges:
+    regex: "Peer is pulling (continuous )?changes from seq #(?<sequence>\\d+)"
+    captures:
       sequence: Int # Sequence number
   puller_handled_revs:
     regex: "(?<handled>\\d+) revs were provisionally handled; down to (?<pending>\\d+) revs"
     captures:
       handled: Int # Number of handled revisions
       pending: Int # Number of pending revisions
+  pusher_no_changes:
+    regex: "Found 0 changes up to #(?<sequence>\\d+)"
+    captures:
+      sequence: Int # Sequence number
+  pusher_found_changes:
+    regex: "Read (?<num_changes>\\d+) local changes up to #(?<sequence>\\d+): sending '(?<request>\\w+)' with sequences #(?<start_seq>\\d+) - (?<end_seq>\\d+)"
+    captures:
+      num_changes: Int # Number of changes
+      sequence: Int # Last sequence
+      request: String # Request type ('changes' or 'proposeChanges')
+      start_seq: Int # Start sequence number for changes
+      end_seq: Int # End sequence number for changes
+  revfinder_caught_up:
+    regex: "/RevFinder#\\d+/ Coll=(?<collection_id>\\d+) Caught up with remote changes"
+    captures:
+      collection_id: Int # Collection ID
+  revfinder_update_remote:
+    regex: "Updating remote #(?<remote_id>\\d+)'s rev of '(?<doc_id>\\S+)' to (?<rev_id>\\S+) of collection (?<collection>\\S+)"
+    captures:
+      remote_id: Int # Remote ID
+      doc_id: String # Document ID
+      rev_id: String # Revision ID
+      collection: String # Collection (i.e. "_default" or "flowers.tulips")
+  revfinder_request_revs:
+    regex: "/RevFinder#\\d+/ Coll=(?<collection_id>\\d+) Responded to '(?<request>\\w+)' REQ#(?<request_id>\\d+) w/request for (?<num_revs>\\d+) revs in (?<elapsed_time>\\d+.\\d+) sec"
+    captures:
+      collection_id: Int # Collection ID
+      request: String # Request type
+      request_id: Int # Request ID
+      num_revs: Int # Number of revisions
+      elapsed_time: Float # Elapsed time for finding revs and responding to request
+  revfinder_received_changes:
+    regex: "/RevFinder#\\d+/ Coll=(?<collection_id>\\d+) Received (?<num_changes>\\d+) changes \\(seq '(?<sequence>\\S+)'"
+    captures:
+      collection_id: Int # Collection ID
+      num_changes: Int # Number of changes
+      sequence: String # Sequence number
   inserter_insert_rev:
     regex: "\\{'(?<doc_id>\\S+) \\((?<collection>\\S+)\\)' #(?<rev_id>\\S+) <- (?<rev_history>\\S+)\\} seq (?<sequence>\\d+)"
     captures:
@@ -113,6 +190,18 @@ events:
       rev_id: String # Revision ID
       rev_history: String # Revision history
       sequence: Int # Sequence number
+  inserter_create_conflict:
+    regex: "Created conflict with '(?<doc_id>\\S+) (?<collection>\\S+)' #(?<rev_id>\\S+)"
+    captures:
+      doc_id: String # Document ID
+      collection: String # Collection name
+      rev_id: String # Revision ID
+  worker_status_change:
+    regex: "status=(?<status>\\S+) from=(?<prev_status>\\S+) reason=(?<reason>\\S+)"
+    captures:
+      status: String # Worker status
+      prev_status: String # Previous status
+      reason: String # Reason for status change
   blip_send_request_start:
     regex: "Sending '(?<request>\\w+)' REQ #(?<id>\\d+)"
     captures:

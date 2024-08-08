@@ -5,20 +5,20 @@ CREATE TABLE lines(
     level      INTEGER   NOT NULL,
     timestamp  TIMESTAMP NOT NULL,
     -- Log Domain (DB, Sync, etc.)
-    domain     INTEGER   NOT NULL,
-    -- The Object which logged the log line
-    object_id  INTEGER   NOT NULL,
+    domain     TEXT      NOT NULL,
     -- The EventType (an enum)
     event_type INTEGER   NOT NULL,
     -- Extra data for the event. The JSON schema is defined by the event_type.
     event_data TEXT,
+    -- The object path, if any, i.e. /Repl#76/Pusher#123/ for Pusher#123 which belongs to Repl#76
+    object_path TEXT             ,
     -- Composite primary key, level and line_num are always unique. In the case of rollover, the line_num in the
     -- next file starts after the last line_num in the previous file of that level.
     PRIMARY KEY (file_id, line_num),
-    FOREIGN KEY (object_id)
-        REFERENCES objects(id),
     FOREIGN KEY (file_id)
-        REFERENCES files(id)
+        REFERENCES files(id),
+    FOREIGN KEY (event_type)
+        REFERENCES event_types(id)
 );
 
 CREATE TABLE files(
@@ -30,10 +30,9 @@ CREATE TABLE files(
     timestamp TIMESTAMP NOT NULL
 );
 
-CREATE TABLE objects(
-    id          INTEGER PRIMARY KEY NOT NULL,
-    -- Object Type (Repl, DB, Pusher, Query, etc.)
-    object_type INTEGER NOT NULL,
-    -- Extra data for the object. The JSON schema is defined by the object_type.
-    data        TEXT
+-- A store of the event type names to make querying easier.
+-- event_type is stored as an integer in the lines table, and the corresponding name is stored here.
+CREATE TABLE event_types(
+    id         INTEGER PRIMARY KEY NOT NULL,
+    name       TEXT    NOT NULL
 );

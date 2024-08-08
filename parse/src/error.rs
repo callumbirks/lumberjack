@@ -40,8 +40,6 @@ pub enum Error {
     UnknownObject(String),
     #[error("No domain in line")]
     NoDomain,
-    #[error("Unknown domain \"{0}\"")]
-    UnknownDomain(String),
     #[error("No object in line")]
     NoObject,
     #[error("No such value {0} in enum {1}")]

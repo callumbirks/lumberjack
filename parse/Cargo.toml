@@ -15,6 +15,7 @@ diesel = { workspace = true, features = [
     "returning_clauses_for_sqlite_3_35",
 ] }
 diesel_migrations.workspace = true
+enum-iterator.workspace = true
 futures.workspace = true
 lazy_static.workspace = true
 libsqlite3-sys.workspace = true
@@ -36,3 +37,4 @@ regex.workspace = true
 
 [dev-dependencies]
 env_logger.workspace = true
+rusqlite = { version = "^0.31", features = ["bundled", "chrono"] }

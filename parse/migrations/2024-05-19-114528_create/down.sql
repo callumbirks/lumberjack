@@ -1,6 +1,6 @@
 -- This file should undo anything in `up.sql`
-DROP TABLE lines;
+DROP TABLE IF EXISTS lines;
 
-DROP TABLE files;
+DROP TABLE IF EXISTS files;
 
-DROP TABLE objects;
+DROP TABLE IF EXISTS event_types;

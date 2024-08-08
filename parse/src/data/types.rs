@@ -1,13 +1,13 @@
 use crate::data::util::{diesel_tosql_transmute, impl_display_debug};
 use crate::parser::regex_patterns::LevelNames;
-use crate::schema::{files, lines, objects};
+use crate::schema::{files, lines};
 use crate::{Error, Result};
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use diesel::{sql_types, AsExpression, FromSqlRow};
 pub use events::*;
 use serde::Serialize;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 use std::str::FromStr;
 
 mod events {
@@ -18,7 +18,6 @@ mod events {
     Insertable, Serialize, Identifiable, Queryable, Selectable, Associations, Debug, Clone,
 )]
 #[diesel(primary_key(file_id, line_num))]
-#[diesel(belongs_to(Object))]
 #[diesel(belongs_to(File))]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct Line {
@@ -26,21 +25,10 @@ pub struct Line {
     pub line_num: i32,
     pub level: Level,
     pub timestamp: NaiveDateTime,
-    pub domain: Domain,
+    pub domain: String,
     pub event_type: EventType,
     pub event_data: Option<String>,
-    pub object_id: i32,
-}
-
-#[derive(
-    Insertable, Identifiable, Queryable, Selectable, Serialize, PartialEq, Eq, Debug, Clone,
-)]
-#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
-pub struct Object {
-    pub id: i32,
-    pub object_type: ObjectType,
-    // JSON
-    pub data: Option<String>,
+    pub object_path: Option<String>,
 }
 
 #[derive(Insertable, Identifiable, Queryable, Selectable, Serialize, Debug, Clone)]
@@ -51,21 +39,6 @@ pub struct File {
     pub level: Option<Level>,
     pub timestamp: NaiveDateTime,
 }
-
-#[derive(AsExpression, FromSqlRow, Serialize, Hash, Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(i32)]
-#[diesel(sql_type = sql_types::Integer)]
-pub enum Domain {
-    Actor,
-    BLIP,
-    DB,
-    Sync,
-    Query,
-    WS,
-}
-
-impl_display_debug!(Domain);
-diesel_tosql_transmute!(Domain, i32, sql_types::Integer);
 
 #[derive(AsExpression, FromSqlRow, Serialize, Hash, Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(i32)]
@@ -108,19 +81,6 @@ pub enum ObjectType {
 
 impl_display_debug!(ObjectType);
 diesel_tosql_transmute!(ObjectType, i32, sql_types::Integer);
-
-impl Object {
-    pub fn name(&self) -> String {
-        format!("{}#{}", self.object_type, self.id)
-    }
-}
-
-// Hashed by `id`, because this is always unique across objects.
-impl Hash for Object {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
-    }
-}
 
 impl PartialEq<Self> for Line {
     fn eq(&self, other: &Self) -> bool {
@@ -179,22 +139,6 @@ impl FromStr for ObjectType {
             "Query" => Ok(ObjectType::Query),
             "DBAccess" => Ok(ObjectType::DBAccess),
             _ => Err(Error::UnknownObject(s.to_string())),
-        }
-    }
-}
-
-impl FromStr for Domain {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        match s {
-            "Actor" => Ok(Domain::Actor),
-            "BLIP" => Ok(Domain::BLIP),
-            "DB" => Ok(Domain::DB),
-            "Sync" => Ok(Domain::Sync),
-            "Query" => Ok(Domain::Query),
-            "WS" => Ok(Domain::WS),
-            _ => Err(Error::UnknownDomain(s.to_string())),
         }
     }
 }

@@ -1,23 +1,18 @@
-# Captures:
-#   ver: version / release (i.e. "3.1.1")
-#   plat: platform (i.e. ".NET"
-#   os: OS (i.e. "Microsoft Windows 10.0.22621")
-#   build: build number (i.e. "3" for 3.1.1-3)
-#   commit: combined commit string (i.e. "d8a2f91+3050eba")
 platforms:
-  # Vanilla
-  - version: "---- CouchbaseLite/(?<ver>\\d+.\\d+.\\d+).+\\((?<plat>\\S+); (?<os>.*)\\) Build/(?<build>\\d+) LiteCore/\\d+.\\d+.\\d+ \\(\\d+\\) Commit/(?<commit>\\S+) ----"
-    timestamp: "(?<ts>\\d{2}:\\d{2}:\\d{2}.\\d+)\\|"
+  # Android Logcat
+  - version: "Initialized: CouchbaseLite (?<plat>\\S+) v(?<ver>\\d+.\\d+.\\d+)-(?<build>\\d+).*Commit/(?<commit>\\S+).* on \\S+; (?<os>.*);"
+    timestamp: "(?<ts>\\d{2}:\\d{2}:\\d{2}.\\d+)"
     full_timestamp: false
     timestamp_formats:
-      - "%H:%M:%S.%6f"
-    domain: "\\d+\\| \\[(?<domain>\\w+)\\]: "
+      - "%H:%M:%S.%3f"
+    domain: "CouchbaseLite/(?<domain>\\w+):"
+    level: " (?<level>\\w) CouchbaseLite/"
     level_names:
-      error: "error"
-      warn: "warning"
-      info: "info"
-      verbose: "verbose"
-      debug: "debug"
+      error: "E"
+      warn: "W"
+      info: "I"
+      verbose: "V"
+      debug: "D"
 # Captures
 #   obj: Object name (i.e. "Repl")
 #   id: Object ID
@@ -88,20 +83,19 @@ events:
       handled: Int # Number of handled revisions
       pending: Int # Number of pending revisions
   incoming_rev_received:
-    regex: "\\{IncomingRev#\\d+\\} \\{Coll#\\d+\\} Received revision '(?<doc_id>\\S+)' #(?<rev_id>\\S+) \\(seq '(?<sequence>\\S+)'\\)"
+    regex: "\\{IncomingRev#\\d+\\} Received revision '(?<doc_id>\\S+)' #(?<rev_id>\\S+) \\(seq '(?<sequence>\\d+)'\\)"
     captures:
       doc_id: String # Document ID
       rev_id: String # Revision ID
-      sequence: String # Sequence number
+      sequence: Int # Sequence number
   inserter_inserting_revs:
-    regex: "\\{Inserter#\\d+\\} \\{Coll#\\d+\\} Inserting (?<num_revs>\\d+) revs:"
+    regex: "\\{Inserter#\\d+\\} Inserting (?<num_revs>\\d+) revs:"
     captures:
       num_revs: Int # Number of revisions
   inserter_insert_rev:
-    regex: "\\{'(?<doc_id>\\S+) \\((?<collection>\\S+)\\)' #(?<rev_id>\\S+) <- (?<rev_history>\\S*)\\} seq (?<sequence>\\d+)"
+    regex: "\\{'(?<doc_id>\\S+)' #(?<rev_id>\\S+) <- (?<rev_history>\\S*)\\} seq (?<sequence>\\d+)"
     captures:
       doc_id: String # Document ID
-      collection: String # Either 'scope.collection', or '_default' for default collection
       rev_id: String # Revision ID
       rev_history: String # Revision history
       sequence: Int # Sequence number

@@ -1,4 +1,9 @@
-use std::{collections::BTreeMap, fmt::Display, io::Write, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt::Display,
+    io::Write,
+    path::Path,
+};
 
 use regex::Regex;
 use util::write_out;
@@ -335,33 +340,23 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
         "pub fn parse_event(line: &str, version: &Version, patterns: &Patterns) -> Result<Event> {\n",
     );
 
+    write_out!(out_file_writer, "    match version {\n",);
+
     for (index, (compatibility, _)) in formats.iter().enumerate() {
         write_out!(
             out_file_writer,
-            "    let ver_from_{} = Version::new({}, {}, {});\n",
-            "    let ver_to_{} = Version::new({}, {}, {});\n",
+            "        ver if ver >= &Version::new({}, {}, {}) && ver < &Version::new({}, {}, {}) => {{\n",
+            "            EventBuilder{}::event_from_line(line, patterns)\n",
+            "        }}\n",
             args!(
-                index,
                 compatibility.from_ver.major,
                 compatibility.from_ver.minor,
                 compatibility.from_ver.patch,
-                index,
                 compatibility.to_ver.major,
                 compatibility.to_ver.minor,
-                compatibility.to_ver.patch
+                compatibility.to_ver.patch,
+                index,
             )
-        );
-    }
-
-    write_out!(out_file_writer, "    match version {\n",);
-
-    for index in 0..formats.len() {
-        write_out!(
-            out_file_writer,
-            "        ver if ver >= &ver_from_{} && ver < &ver_to_{} => {{\n",
-            "            EventBuilder{}::event_from_line(line, patterns)\n",
-            "        }}\n",
-            args!(index, index, index,)
         );
     }
 
@@ -384,13 +379,18 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
 
     write_out!(
         out_file_writer,
-        "#[derive(AsExpression, FromSqlRow, serde::Serialize, Debug, Copy, Clone, Eq, PartialEq, Hash)]\n",
+        "#[derive(AsExpression, FromSqlRow, serde::Serialize, Debug, Copy, Clone, Eq, PartialEq, Hash, enum_iterator::Sequence)]\n",
         "#[repr(i32)]\n",
         "#[diesel(sql_type = sql_types::Integer)]\n",
         "pub enum EventType {\n"
     );
 
-    for key in formats.first_key_value().unwrap().1.events.keys() {
+    let all_event_keys = formats
+        .iter()
+        .flat_map(|(_, patterns)| patterns.events.keys())
+        .collect::<BTreeSet<_>>();
+
+    for key in all_event_keys {
         let key = snake_to_pascal_case(key);
         write_out!(out_file_writer, "    {},\n", args!(&key));
     }
@@ -585,6 +585,7 @@ enum CaptureType {
     Bool,
     Char,
     Int,
+    Float,
     String,
 }
 
@@ -594,6 +595,7 @@ impl Display for CaptureType {
             CaptureType::Bool => write!(f, "bool"),
             CaptureType::Char => write!(f, "char"),
             CaptureType::Int => write!(f, "i64"),
+            CaptureType::Float => write!(f, "f64"),
             CaptureType::String => write!(f, "String"),
         }
     }

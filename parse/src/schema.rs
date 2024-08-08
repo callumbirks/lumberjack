@@ -1,6 +1,13 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
+    event_types (id) {
+        id -> Integer,
+        name -> Text,
+    }
+}
+
+diesel::table! {
     files (id) {
         id -> Integer,
         path -> Text,
@@ -15,26 +22,18 @@ diesel::table! {
         line_num -> Integer,
         level -> Integer,
         timestamp -> Timestamp,
-        domain -> Integer,
-        object_id -> Integer,
+        domain -> Text,
         event_type -> Integer,
         event_data -> Nullable<Text>,
+        object_path -> Nullable<Text>,
     }
 }
 
-diesel::table! {
-    objects (id) {
-        id -> Integer,
-        object_type -> Integer,
-        data -> Nullable<Text>,
-    }
-}
-
+diesel::joinable!(lines -> event_types (event_type));
 diesel::joinable!(lines -> files (file_id));
-diesel::joinable!(lines -> objects (object_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
+    event_types,
     files,
     lines,
-    objects,
 );

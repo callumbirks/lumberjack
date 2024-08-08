@@ -25,12 +25,11 @@ pub struct Line {
     #[serde(serialize_with = "serialize_to_string")]
     level: lumberjack_parse::data::Level,
     timestamp: NaiveDateTime,
-    #[serde(serialize_with = "serialize_to_string")]
-    domain: lumberjack_parse::data::Domain,
+    domain: String,
     #[serde(serialize_with = "serialize_to_string")]
     event_type: lumberjack_parse::data::EventType,
     event_data: Option<String>,
-    object_id: i32,
+    object_path: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -58,19 +57,9 @@ impl From<lumberjack_parse::data::Line> for Line {
             level: value.level,
             timestamp: value.timestamp,
             domain: value.domain,
-            object_id: value.object_id,
             event_type: value.event_type,
             event_data: value.event_data,
-        }
-    }
-}
-
-impl From<lumberjack_parse::data::Object> for Object {
-    fn from(value: lumberjack_parse::data::Object) -> Self {
-        Object {
-            id: value.id,
-            object_type: value.object_type,
-            data: value.data,
+            object_path: value.object_path,
         }
     }
 }
