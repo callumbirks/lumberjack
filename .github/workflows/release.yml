@@ -65,14 +65,14 @@ jobs:
         working-directory: ${{ github.workspace }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ github.ref_name }}
         run: |
-          gh release upload "$tag" --repo="$GITHUB_REPOSITORY" "target/release/${{ matrix.renamed_binary }}"
+          gh release upload ${{ github.ref_name }} --repo="$GITHUB_REPOSITORY" "target/release/${{ matrix.renamed_binary }}"
 
   delete_release:
     name: Delete Release
     runs-on: ubuntu-latest
     needs: build-upload
+    # Disabled until Windows `gh release upload` works.
     if: ${{ !always() }}
     steps:
       - name: Delete Release
