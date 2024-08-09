@@ -26,11 +26,21 @@ jobs:
   build-upload:
     name: Build and Upload Binaries
     needs: create-release
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: true
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+        include:
+          - os: ubuntu-latest
+            binary: "cbl-lumberjack"
+            renamed_binary: "cbl-lumberjack_ubuntu"
+          - os: windows-latest
+            binary: "cbl-lumberjack.exe"
+            renamed_binary: "cbl-lumberjack_windows.exe"
+          - os: macos-latest
+            binary: "cbl-lumberjack"
+            renamed_binary: "cbl-lumberjack_macos"
 
     steps:
       - uses: actions/checkout@v4
@@ -47,12 +57,13 @@ jobs:
         run: cargo build --release
 
       - name: Upload Binaries
+        working-directory: ${{ github.workspace }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ github.ref_name }}
         run: |
-          mv "${{ github.workspace }}/target/release/cbl-lumberjack" "${{ github.workspace }}/target/release/cbl-lumberjack_${{ matrix.os }}"
-          gh release upload "$tag" --repo="$GITHUB_REPOSITORY" "${{ github.workspace }}/target/release/cbl-lumberjack_${{ matrix.os }}"
+          mv "target/release/${{ matrix.binary }}" "target/release/${{ matrix.renamed_binary }}"
+          gh release upload "$tag" --repo="$GITHUB_REPOSITORY" "target/release/${{ matrix.renamed_binary }}"
 
   delete_release:
     name: Delete Release
