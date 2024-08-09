@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - v*
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: build-artifacts
+    steps:
+      - name: Create Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref_name }}
+        run: |
+          gh release create "$tag" \
+            --repo="$GITHUB_REPOSITORY" \
+            --title="${GITHUB_REPOSITORY#*/} ${tag#v}" \
+            --generate-notes
+
+  build-upload:
+    name: Build and Upload Binaries
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update Rust Toolchain
+        run: |
+          rustup update
+
+      - name: Toolchain Info
+        run: cargo --version --verbose && rustup show
+
+      - name: Build
+        working-directory: ${{ github.workspace }}
+        run: cargo build --release
+
+      - name: Upload Binaries
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref_name }}
+        run: |
+          gh release upload "$tag" \
+            --repo="$GITHUB_REPOSITORY" \
+            "${{ github.workspace }}/target/release/cbl-lumberjack#cbl-lumberjack_${{ matrix.os }}"
+
+  delete_release:
+    name: Delete Release
+    runs-on: ubuntu-latest
+    needs: build-artifacts
+    if: ${{ failure() }}
+    steps:
+      - name: Delete Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref_name }}
+        run: |
+          gh release delete "$tag" \
+            --repo="$GITHUB_REPOSITORY" \
+            --cleanup-tag \
+            -y
