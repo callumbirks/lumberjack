@@ -51,9 +51,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ github.ref_name }}
         run: |
+          mv "${{ github.workspace }}/target/release/cbl-lumberjack" "${{ github.workspace }}/target/release/cbl-lumberjack_${{ matrix.os }}"
           gh release upload "$tag" \
             --repo="$GITHUB_REPOSITORY" \
-            "${{ github.workspace }}/target/release/cbl-lumberjack#cbl-lumberjack_${{ matrix.os }}"
+            "${{ github.workspace }}/target/release/cbl-lumberjack_${{ matrix.os }}"
 
   delete_release:
     name: Delete Release
