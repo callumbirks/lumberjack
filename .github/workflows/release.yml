@@ -72,8 +72,7 @@ jobs:
     name: Delete Release
     runs-on: ubuntu-latest
     needs: build-upload
-    # Disabled until Windows `gh release upload` works.
-    if: ${{ !always() }}
+    if: ${{ failure() }}
     steps:
       - name: Delete Release
         env:
