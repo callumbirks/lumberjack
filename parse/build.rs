@@ -76,15 +76,36 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
         "                };\n",
         "\n",
         "                let version = Version::parse(version_str).map_err(Error::Semver)?;\n",
-        "                return PATTERNS_MAP\n",
-        "                    .get(&version)\n",
-        "                    .map(|patterns| (Patterns::from_strings(patterns, platform), version.clone()))\n",
-        "                    .ok_or(Error::UnsupportedVersion(version));\n",
+        "                return Ok((pattern_for_version(line, version.clone())?, version));\n",
         "            }\n",
         "        }\n",
         "    }\n",
         "    Err(Error::NoMatches)\n",
         "}\n\n"
+    );
+
+    write_out!(
+        out_file_writer,
+        "/// Just because a version matched against a pattern, it doesn't mean the pattern is for the correct version.\n",
+        "/// We need to fetch the correct pattern for the version, then get the right platform for that version.\n",
+        "fn pattern_for_version(line: &str, version: Version) -> Result<Patterns> {\n",
+        "    let pattern = PATTERNS_MAP\n",
+        "        .get(&version)\n",
+            "        .ok_or(Error::UnsupportedVersion(version))?;\n",
+        "    for platform in pattern.platforms.iter() {\n",
+        "        let version_re = Regex::new(platform.version).unwrap();\n",
+        "        let Some(capture) = version_re.captures(line) else {\n",
+        "            continue;\n",
+        "        };\n",
+        "        assert!(\n",
+        "            capture.name(\"ver\").is_some(),\n",
+        "            \"YAML 'version' spec is missing 'ver' capture!\"\n",
+        "        );\n",
+        "\n",
+        "        return Ok(Patterns::from_strings(pattern, platform));\n",
+        "    }\n",
+        "    Err(Error::UnsupportedPlatform(line.to_string()))\n",
+        "}\n\n",
     );
 
     write_out!(

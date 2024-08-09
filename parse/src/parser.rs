@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     ffi::OsStr,
     path::{Path, PathBuf},
 };
@@ -101,25 +102,23 @@ impl Parser {
                 .map(|(i, line)| {
                     let res = self.parse_line(&line, i as u64, &file, file.timestamp.date());
 
-                let Ok(line) = res else {
-                    let err = res.unwrap_err();
-                    if log::log_enabled!(log::Level::Trace) {
-                        let reduced_line = reduce_line(&line, &self.patterns);
-                        return LineResult::Err((err, reduced_line));
-                    } else {
-                        return LineResult::Err((err, "".to_string()))
-                    }
-                };
+                    let Ok(line) = res else {
+                        let err = res.unwrap_err();
+                        if log::log_enabled!(log::Level::Trace) {
+                            let reduced_line = reduce_line(&line, &self.patterns);
+                            return LineResult::Err((err, reduced_line));
+                        } else {
+                            return LineResult::Err((err, "".to_string()))
+                        }
+                    };
 
-                if self.patterns.platform.full_timestamp {
-                    LineResult::Ok(line)
-                } else {
-                    if line.timestamp < file.timestamp {
+                    if self.patterns.platform.full_timestamp {
+                        LineResult::Ok(line)
+                    } else if line.timestamp < file.timestamp {
                         LineResult::Rollover(line)
                     } else {
                         LineResult::Ok(line)
                     }
-                }
                 }).collect();
 
         let (mut ok_results, results): (Vec<Line>, Vec<LineResult>) =
@@ -152,6 +151,26 @@ impl Parser {
             .par_iter()
             .filter(|(err, _)| matches!(err, Error::NoDomain))
             .count();
+
+        if log::log_enabled!(log::Level::Trace) {
+            let mut errors: HashMap<String, (Error, usize)> = HashMap::new();
+
+            for (err, line) in err_results {
+                if !matches!(err, Error::NoDomain) {
+                    let entry = errors.entry(line).or_insert((err, 0));
+                    entry.1 += 1;
+                }
+            }
+
+            for (line, (err, count)) in errors {
+                log::trace!(
+                    "Failed to parse line {} times with '{}': '{}'",
+                    count,
+                    err,
+                    line
+                );
+            }
+        }
 
         log::debug!(
             "Parsed '{}' with {} lines ({} CBL lines skipped due to error, {} non-CBL lines ignored)",
@@ -315,9 +334,7 @@ lazy_static! {
 }
 
 fn parse_object(line: &str, regex: &Regex) -> Option<String> {
-    let Some(caps) = regex.captures(line) else {
-        return None;
-    };
+    let caps = regex.captures(line)?;
 
     let obj_str = caps.name("obj")?.as_str();
 

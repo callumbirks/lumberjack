@@ -69,7 +69,7 @@ struct InsertableEventType {
 impl From<EventType> for InsertableEventType {
     fn from(value: EventType) -> Self {
         Self {
-            id: unsafe { std::mem::transmute(value) },
+            id: unsafe { std::mem::transmute::<EventType, i32>(value) },
             name: value.to_string(),
         }
     }

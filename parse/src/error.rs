@@ -26,6 +26,8 @@ pub enum Error {
     NotLogs(PathBuf),
     #[error("Unsupported CBL Version {0}")]
     UnsupportedVersion(Version),
+    #[error("Unsupported Platform with identifying line '{0}'")]
+    UnsupportedPlatform(String),
     #[error("Invalid Filename \"{0}\"")]
     InvalidFilename(String),
     #[error("No such log level '{0}'")]

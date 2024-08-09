@@ -183,7 +183,7 @@ events:
       num_changes: Int # Number of changes
       sequence: String # Sequence number
   inserter_insert_rev:
-    regex: "\\{'(?<doc_id>\\S+) \\((?<collection>\\S+)\\)' #(?<rev_id>\\S+) <- (?<rev_history>\\S+)\\} seq (?<sequence>\\d+)"
+    regex: "/Inserter#\\d+/\\s+\\{'(?<doc_id>\\S+) \\((?<collection>\\S+)\\)' #(?<rev_id>\\S+) <- (?<rev_history>\\S*)\\} seq (?<sequence>\\d+)"
     captures:
       doc_id: String # Document ID
       collection: String # Collection name
@@ -196,6 +196,13 @@ events:
       doc_id: String # Document ID
       collection: String # Collection name
       rev_id: String # Revision ID
+  incoming_rev_received:
+    regex: "/IncomingRev#\\d+/ Coll=(?<collection_id>\\d+) Received revision '(?<doc_id>\\S+)' #(?<rev_id>\\S+) \\(seq '(?<sequence>\\S+)'\\)"
+    captures:
+      collection_id: Int # Collection ID
+      doc_id: String # Document ID
+      rev_id: String # Revision ID
+      sequence: String # Sequence number
   worker_status_change:
     regex: "status=(?<status>\\S+) from=(?<prev_status>\\S+) reason=(?<reason>\\S+)"
     captures:
