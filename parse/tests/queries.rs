@@ -41,7 +41,7 @@ fn find_uninserted_revs() {
                     json_extract(lines.event_data, '$.doc_id'),
                     json_extract(lines.event_data, '$.rev_id')
                 FROM lines
-                WHERE event_type = (SELECT id FROM event_types WHERE name = 'IncomingRevReceived')
+                WHERE event_type = (SELECT id FROM event_types WHERE name = 'IncomingrevReceived')
             ),
             saved_revs(doc_id, rev_id) AS (
                 SELECT

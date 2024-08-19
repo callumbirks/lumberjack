@@ -175,16 +175,21 @@ events:
     regex: "Repl#\\d+/ Coll=\\d+ Scanning for pre-existing conflicts..."
     ignore: true
   repl_connected:
-    regex: "Repl#\\d+/ Connected!"
-  repl_closed:
-    regex: "Repl#\\d+/ Connection closed with (?<reason>.*): \"(?<message>.*)\" \\(state=(?<from_state>\\d+)->(?<to_state>(-)?\\d+)\\)"
+    regex: "Repl#\\d+/( CorrID=(?<correlation_id>\\S+))? Connected!"
     captures:
+      correlation_id: OptionalString # Correlation ID
+  repl_closed:
+    regex: "Repl#\\d+/( CorrID=(?<correlation_id>\\S+))? Connection closed with (?<reason>.*): \"(?<message>.*)\" \\(state=(?<from_state>\\d+)->(?<to_state>(-)?\\d+)\\)"
+    captures:
+      correlation_id: OptionalString # Correlation ID
       reason: String # Reason for closure
       message: String # Close message
       from_state: Int # From state (integer enum == Connection::State)
       to_state: Int # To state (integer enum == Connection::State)
   repl_oneshot_complete:
-    regex: "Repl#\\d+/ Replication complete! Closing connection"
+    regex: "Repl#\\d+/( CorrID=(?<correlation_id>\\S+))? Replication complete! Closing connection"
+    captures:
+      correlation_id: OptionalString # Correlation ID
   repl_activity_update:
     regex: "activityLevel=(?<activity>\\S+): connectionState=(?<connection_state>\\d), savingChkpt=(?<saving_checkpoint>\\d+)"
     captures:
@@ -235,38 +240,49 @@ events:
       mode: String # 'get' or 'set'
       checkpoint_id: String # Checkpoint ID
   repl_receive_remote_checkpoint:
-    regex: "Repl#\\d+/( Coll=)?(?<collection_id>\\d*) Received remote checkpoint \\(rev='(?<checkpoint_rev_id>.+)'\\):\\s?(?<checkpoint_json>(\\{.*\\})?)"
+    regex: "Repl#\\d+/( CorrID=(?<correlation_id>\\w+))?( Coll=(?<collection_id>\\d+))? Received remote checkpoint \\(rev='(?<checkpoint_rev_id>.*)'\\):\\s?(?<checkpoint_json>(\\{.*\\})?)"
     captures:
-      collection_id: !DefaultedInt -1 # Collection ID
-      checkpoint_rev_id: String # Checkpoint revision ID
-      checkpoint_json: String # Checkpoint JSON
+      correlation_id: OptionalString # Correlation ID (SG context ID)
+      collection_id: OptionalInt # Collection ID
+      checkpoint_rev_id: String # Checkpoint revision ID (may be empty)
+      checkpoint_json: OptionalString # Checkpoint JSON
   repl_no_remote_checkpoint:
-    regex: "Repl#\\d+/( Coll=)?(?<collection_id>\\d*) No remote checkpoint '(?<checkpoint_id>\\S+)'"
+    regex: "Repl#\\d+/( CorrID=(?<correlation_id>\\w+))?( Coll=(?<collection_id>\\d+))? No remote checkpoint '(?<checkpoint_id>\\S+)'"
     captures:
-      collection_id: !DefaultedInt -1 # Collection ID
+      correlation_id: OptionalString # Correlation ID (SG context ID)
+      collection_id: OptionalInt # Collection ID
       checkpoint_id: String # Checkpoint ID
   repl_document_ended:
-    regex: "Repl#\\d+/ documentEnded (?<doc_id>\\S+) (?<rev_id>.+) flags=(?<flags>\\S+) \\((?<error_domain>\\d+)/(?<error_code>\\d+)\\)"
+    regex: "Repl#\\d+/( CorrID=(?<correlation_id>\\S+))? documentEnded (?<doc_id>\\S+) (?<rev_id>.+) flags=(?<flags>\\S+) \\((?<error_domain>\\d+)/(?<error_code>\\d+)\\)"
     captures:
+      correlation_id: OptionalString # Correlation ID
       doc_id: String # Document ID
       rev_id: String # Revision ID
       flags: HexInt # Rev Flags
       error_domain: Int # Error domain
       error_code: Int # Error code
   repl_told_stop:
-    regex: "Repl#\\d+/ Told to stop!"
+    regex: "Repl#\\d+/( CorrID=(?<correlation_id>\\S+))? Told to stop!"
+    captures:
+      correlation_id: OptionalString # Correlation ID (SG context ID)
   repl_request_no_collection:
     regex: '"collection" property is not present in the request; 0 is used'
   repl_err_stop_fatal:
-    regex: "/Repl#\\d+/ Stopping due to fatal error: (?<error>.*)"
+    regex: "/Repl#\\d+/( CorrID=(?<correlation_id>\\S+))? Stopping due to fatal error: (?<error>.*)"
     captures:
+      correlation_id: OptionalString # Correlation ID (SG context ID)
       error: String # Error message
   repl_err_stop_transient:
-    regex: "/Repl#\\d+/ Stopping due to error: (?<error>.*)"
+    regex: "/Repl#\\d+/( CorrID=(?<correlation_id>\\S+))? Stopping due to error: (?<error>.*)"
     captures:
+      correlation_id: OptionalString # Correlation ID (SG context ID)
       error: String # Error message
   repl_remote_going_away:
     regex: "Repl#\\d+/ I didn't initiate the close; treating this as code 1001 \\(GoingAway\\)"
+  repl_received_correlation_id:
+    regex: "Repl#\\d+/ CorrID=(?<correlation_id>\\w+) Received X-Correlation-Id"
+    captures:
+      correlation_id: String # Correlation ID (SG context ID)
   c4repl_status_update:
     regex: "/C4\\w*Repl#\\d+/ State: (?<state>\\S+), progress=(?<progress>\\d+.\\d+)%(, error=)?(?<error>.*)"
     captures:
@@ -477,6 +493,14 @@ events:
       rejected_rev: String # Rejected (conflicting) revision ID
       parent_rev: String # Common ancestor revision ID (may be empty)
       current_rev: String # Current revision ID
+  revfinder_sg_revoked:
+    regex: "/RevFinder#\\d+/ Coll=(?<collection_id>\\d+) SG revoked access to rev \"(?<collection>\\S+\\.\\S+)\\.(?<doc_id>\\S+)/(?<rev_id>\\S+)\" with deletion (?<deletion>\\d+)"
+    captures:
+      collection_id: Int # Collection ID
+      collection: String # Collection name
+      doc_id: String # Document ID
+      rev_id: String # Revision ID
+      deletion: Int # Deletion Flag (0=normal, 1=deleted, 2=revoked, 3=revoked+deleted, 4=removal)
   changesfeed_no_changes:
     regex: "/ChangesFeed#\\d+/ No new observed changes..."
   changesfeed_filter_requested:
@@ -542,13 +566,15 @@ events:
       prev_status: String # Previous status
       reason: String # Reason for status change
   worker_error:
-    regex: "\\d+/ Got LiteCore error: (?<error>\\.*)"
+    regex: "\\d+/( CorrID=(?<correlation_id>\\S+))? Got LiteCore error: (?<error>\\.*)"
     captures:
+      correlation_id: OptionalString # Correlation ID
       error: String # Error message
   worker_error_response:
-    regex: "Coll=(?<collection_id>\\d+) Got error response: (?<domain>\\S+) (?<code>\\d+) '(?<message>.*)'"
+    regex: "( CorrID=(?<correlation_id>\\S+))?( Coll=(?<collection_id>\\d+))? Got error response: (?<domain>\\S+) (?<code>\\d+) '(?<message>.*)'"
     captures:
-      collection_id: Int # Collection ID
+      correlation_id: OptionalString # Correlation ID
+      collection_id: OptionalInt # Collection ID
       domain: String # Error domain
       code: Int # Error code
       message: String # Error message

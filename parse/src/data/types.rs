@@ -1,7 +1,7 @@
 use crate::data::util::{diesel_tosql_transmute, impl_display_debug};
 use crate::parser::regex_patterns::LevelNames;
 use crate::schema::{files, lines};
-use crate::{Error, Result};
+use crate::Result;
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use diesel::{sql_types, AsExpression, FromSqlRow};

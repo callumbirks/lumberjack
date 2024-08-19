@@ -1,6 +1,5 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    fmt::Display,
     io::Write,
     path::Path,
 };
@@ -451,7 +450,7 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
                     write_out!(
                         out_file_writer,
                         "            {}: {},\n",
-                        args!(key, capture_type)
+                        args!(key, capture_type.json_type())
                     );
                 }
                 write_out!(out_file_writer, "        }\n");
@@ -511,6 +510,29 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
                                 args!(key)
                             );
                         }
+                        CaptureType::OptionalInt => {
+                            write_out!(
+                                out_file_writer,
+                                "                {{\n",
+                                "                    captures\n",
+                                "                        .name(\"{}\")\n",
+                                "                        .and_then(|m| m.as_str().parse::<{}>().ok())\n",
+                                "                }},\n",
+                                args!(key, capture_type.parse_type())
+                            );
+                        }
+                        CaptureType::OptionalString => {
+                            write_out!(
+                                out_file_writer,
+                                "                {{\n",
+                                "                    captures\n",
+                                "                        .name(\"{}\")\n",
+                                "                        .and_then(|m| m.as_str().parse::<{}>().ok())\n",
+                                "                        .and_then(|s| if s.is_empty() {{ None }} else {{ Some(s) }})\n",
+                                "                }},\n",
+                                args!(key, capture_type.parse_type())
+                            );
+                        }
                         CaptureType::DefaultedInt(default) => {
                             write_out!(
                                 out_file_writer,
@@ -520,7 +542,7 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
                                 "                        .and_then(|m| m.as_str().parse::<{}>().ok())\n",
                                 "                        .unwrap_or({})\n",
                                 "                }},\n",
-                                args!(key, capture_type, default)
+                                args!(key, capture_type.parse_type(), default)
                             );
                         }
                         CaptureType::DefaultedFloat(default) => {
@@ -532,7 +554,19 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
                                 "                        .and_then(|m| m.as_str().parse::<{}>().ok())\n",
                                 "                        .unwrap_or({:?})\n",
                                 "                }},\n",
-                                args!(key, capture_type, default)
+                                args!(key, capture_type.parse_type(), default)
+                            );
+                        }
+                        CaptureType::DefaultedString(default) => {
+                            write_out!(
+                                out_file_writer,
+                                "                {{\n",
+                                "                    captures\n",
+                                "                        .name(\"{}\")\n",
+                                "                        .map(|m| m.as_str().parse::<{}>())\n",
+                                "                        .unwrap_or_else(|| \"{}\".to_string())\n",
+                                "                }},\n",
+                                args!(key, capture_type.parse_type(), default)
                             );
                         }
                         _ => {
@@ -544,7 +578,7 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
                                 "                        .and_then(|m| m.as_str().parse::<{}>().ok())\n",
                                 "                        .unwrap()\n",
                                 "                }},\n",
-                                args!(key, capture_type)
+                                args!(key, capture_type.parse_type())
                             );
                         }
                     }
@@ -659,21 +693,43 @@ enum CaptureType {
     HexInt,
     Float,
     String,
+    OptionalInt,
+    OptionalString,
     DefaultedInt(i64),
     DefaultedFloat(f64),
+    DefaultedString(String),
 }
 
-impl Display for CaptureType {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl CaptureType {
+    fn parse_type(&self) -> &'static str {
         match self {
-            CaptureType::Bool => write!(f, "bool"),
-            CaptureType::Char => write!(f, "char"),
-            CaptureType::Int => write!(f, "i64"),
-            CaptureType::HexInt => write!(f, "i64"),
-            CaptureType::Float => write!(f, "f64"),
-            CaptureType::String => write!(f, "String"),
-            CaptureType::DefaultedInt(_) => write!(f, "i64"),
-            CaptureType::DefaultedFloat(_) => write!(f, "f64"),
+            CaptureType::Bool => "bool",
+            CaptureType::Char => "char",
+            CaptureType::Int => "i64",
+            CaptureType::HexInt => "i64",
+            CaptureType::Float => "f64",
+            CaptureType::String => "String",
+            CaptureType::OptionalInt => "i64",
+            CaptureType::OptionalString => "String",
+            CaptureType::DefaultedInt(_) => "i64",
+            CaptureType::DefaultedFloat(_) => "f64",
+            CaptureType::DefaultedString(_) => "String",
+        }
+    }
+
+    fn json_type(&self) -> &'static str {
+        match self {
+            CaptureType::Bool => "bool",
+            CaptureType::Char => "char",
+            CaptureType::Int => "i64",
+            CaptureType::HexInt => "i64",
+            CaptureType::Float => "f64",
+            CaptureType::String => "String",
+            CaptureType::OptionalInt => "Option<i64>",
+            CaptureType::OptionalString => "Option<String>",
+            CaptureType::DefaultedInt(_) => "i64",
+            CaptureType::DefaultedFloat(_) => "f64",
+            CaptureType::DefaultedString(_) => "String",
         }
     }
 }
