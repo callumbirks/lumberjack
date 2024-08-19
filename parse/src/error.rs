@@ -36,6 +36,8 @@ pub enum Error {
     NoMatches,
     #[error("No event in line")]
     NoEvent,
+    #[error("Not parsing ignored event")]
+    IgnoredEvent,
     #[error("No parseable timestamp in line \"{0}\"")]
     NoTimestamp(String),
     #[error("Unknown object '{0}'")]

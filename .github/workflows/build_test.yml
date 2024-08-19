@@ -10,7 +10,8 @@ on:
       - "**"
 
 jobs:
-  build:
+  build-test:
+    name: Build and Test
     strategy:
       fail-fast: false
       matrix:

@@ -15,13 +15,15 @@ pub use error::{Error, Result};
 use serde::Serialize;
 use std::path::Path;
 
+pub use crate::parser::Options;
+
 /// Parse logs from the given `in_path` into a SQLite database at the given `out_path`.
-pub fn parse(in_path: &Path, out_path: &Path) -> Result<()> {
+pub fn parse(in_path: &Path, out_path: &Path, options: Options) -> Result<()> {
     log::info!("Parsing logs at {:?}", in_path);
 
     let mut conn = open_db(out_path, true)?;
 
-    let parser = Parser::new(in_path)?;
+    let parser = Parser::new(in_path, options)?;
 
     let mut total_files = 0_u64;
     let mut total_lines = 0_u64;

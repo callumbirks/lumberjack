@@ -27,7 +27,8 @@ fn find_uninserted_revs() {
 
     let db_path = temp_dir.join("output.sqlite");
 
-    lumberjack_parse::parse(&logs_path, &db_path).expect("Parsing failed!");
+    lumberjack_parse::parse(&logs_path, &db_path, lumberjack_parse::Options::default())
+        .expect("Parsing failed!");
 
     let conn = rusqlite::Connection::open(db_path).expect("Failed to open database");
 

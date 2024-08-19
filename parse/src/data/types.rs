@@ -8,7 +8,6 @@ use diesel::{sql_types, AsExpression, FromSqlRow};
 pub use events::*;
 use serde::Serialize;
 use std::hash::Hash;
-use std::str::FromStr;
 
 mod events {
     include!(concat!(env!("OUT_DIR"), "/events.rs"));
@@ -54,34 +53,6 @@ pub enum Level {
 impl_display_debug!(Level);
 diesel_tosql_transmute!(Level, i32, sql_types::Integer);
 
-#[derive(AsExpression, FromSqlRow, Serialize, Debug, Copy, Clone, Eq, PartialEq, Hash)]
-#[repr(i32)]
-#[diesel(sql_type = sql_types::Integer)]
-pub enum ObjectType {
-    DB,
-    StaticDB,
-    Repl,
-    Pusher,
-    Puller,
-    Inserter,
-    BLIPIO,
-    IncomingRev,
-    Connection,
-    C4SocketImpl,
-    RevFinder,
-    ReplicatorChangesFeed,
-    QueryEnum,
-    C4Replicator,
-    Housekeeper,
-    Shared,
-    CollectionImpl,
-    Query,
-    DBAccess,
-}
-
-impl_display_debug!(ObjectType);
-diesel_tosql_transmute!(ObjectType, i32, sql_types::Integer);
-
 impl PartialEq<Self> for Line {
     fn eq(&self, other: &Self) -> bool {
         self.level == other.level && self.line_num == other.line_num
@@ -111,34 +82,6 @@ impl Level {
             s if s == level_names.verbose => Ok(Self::Verbose),
             s if s == level_names.debug => Ok(Self::Debug),
             _ => Err(crate::Error::NoSuchLevel(s.to_string())),
-        }
-    }
-}
-
-impl FromStr for ObjectType {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        match s {
-            "DB" => Ok(ObjectType::DB),
-            "Repl" | "repl" => Ok(ObjectType::Repl),
-            "Pusher" => Ok(ObjectType::Pusher),
-            "Puller" => Ok(ObjectType::Puller),
-            "Inserter" => Ok(ObjectType::Inserter),
-            "BLIPIO" => Ok(ObjectType::BLIPIO),
-            "IncomingRev" => Ok(ObjectType::IncomingRev),
-            "Connection" => Ok(ObjectType::Connection),
-            "C4SocketImpl" => Ok(ObjectType::C4SocketImpl),
-            "RevFinder" => Ok(ObjectType::RevFinder),
-            "ReplicatorChangesFeed" => Ok(ObjectType::ReplicatorChangesFeed),
-            "QueryEnum" => Ok(ObjectType::QueryEnum),
-            "C4Replicator" => Ok(ObjectType::C4Replicator),
-            "Housekeeper" => Ok(ObjectType::Housekeeper),
-            "Shared" => Ok(ObjectType::Shared),
-            "CollectionImpl" => Ok(ObjectType::CollectionImpl),
-            "Query" => Ok(ObjectType::Query),
-            "DBAccess" => Ok(ObjectType::DBAccess),
-            _ => Err(Error::UnknownObject(s.to_string())),
         }
     }
 }

@@ -51,39 +51,140 @@ events:
     regex: "commit transaction"
   db_tx_abort:
     regex: "abort transaction"
+  db_tx_abort_duplicate:
+    regex: "/DB#\\d+/ Transaction exiting scope without explicit commit; aborting"
+    ignore: true
   db_saved_rev:
-    regex: "Saved '(?<doc_id>\\S+)' rev (?<rev_id>\\S+) as seq (?<sequence>\\d+)"
+    regex: "Saved '(?<doc_id>\\S+)' rev (?<rev_id>.+) as seq (?<sequence>\\d+)"
     captures:
       doc_id: String # Document ID
       rev_id: String # Revision ID
       sequence: Int # Sequence number
+  db_upgrade_indexes:
+    regex: "Upgrading database to use 'indexes' table..."
   db_deleted:
     regex: "Deleting database file (?<path>\\S+) \\(with "
     captures:
       path: String # Database file path
+  db_closing:
+    regex: "/DB#\\d+/ Closing database"
+  db_initialise_insertion_db:
+    regex: "/DBAccess#\\d+/ InsertionDB=(?<insertion_db>\\S+)"
+    captures:
+      insertion_db: String # Insertion database (i.e. "DB#5929")
+  db_purge_doc:
+    regex: "Purge doc \"(?<collection>\\S+\\.\\S+)(?<doc_id>\\S+)\"$"
+  db_purge_expired:
+    regex: "/DB#\\d+/ Purged (?<num_docs>\\d+) expired documents"
+    captures:
+      num_docs: Int # Number of documents purged
+  revision_put_existing_vector:
+    regex: "putExistingRevision '(?<doc_id>\\S+)' #(?<rev_id>.+) ; currently #(?<current_rev_id>.+) --> (?<ordering>\\w+) \\(remote (?<remote_id>\\d+)\\)"
+    captures:
+      doc_id: String # Document ID
+      rev_id: String # Revision ID (to be put)
+      current_rev_id: String # Current revision ID
+      ordering: String # Ordering ('same', 'older', 'newer', 'conflict')
+      remote_id: Int # Remote ID
+  revision_put_existing_revtree:
+    regex: "putExistingRevision "
+  collection_instantiated:
+    regex: "/Collection#\\d+/ DB=(?<parent_db>\\S+) Instantiated"
+    captures:
+      parent_db: String # Parent database (i.e. "DB#5929")
   datafile_shared_open:
     regex: "/Shared#\\d+/ Path=(?<path>\\S+) Instantiated"
     captures:
       path: String # Database (SQLite file) path
+  datafile_incremental_vacuum:
+    regex: "/DB#\\d+/ Incremental-vacuuming database\\.\\.\\."
+  datafile_vacuum_results:
+    regex: "/DB#\\d+/\\s* \\.\\.\\.removed (?<pages_removed>\\d+) pages \\((?<kb_removed>\\d+)KB\\) in (?<elapsed_secs>\\d+\\.\\d+) sec"
+    captures:
+      pages_removed: Int # Number of pages removed
+      kb_removed: Int # Kilobytes removed
+      elapsed_secs: Float # Elapsed time in seconds
+  datafile_delete_waiting:
+    regex: "Waiting for (?<num_connections>\\d+) other connection\\(s\\) to close before deleting (?<path>.*)"
+    captures:
+      num_connections: Int # Number of connections
+      path: String # Database (SQLite file) path
+  db_decrypt_retry:
+    regex: "/DB#\\d+/ Retrying decryption with (?<algorithm>.*)"
+    captures:
+      algorithm: String # Encryption algorithm name
+  db_decrypt_failed:
+    regex: "(Could not decrypt database with|Could not read database \\(err) (?<error>\\d*)(\\) using )?(?<algorithm>.*)"
+    captures:
+      error: !DefaultedInt 0 # SQLite error code (may be 0 if not present)
+      algorithm: String # Encryption algorithm name
+  db_decrypting:
+    regex: "/DB#\\d+/ Decrypting DataFile"
+  db_encrypting:
+    regex: "/DB#\\d+/ Encrypting DataFile"
+  db_encryption_change_key:
+    regex: "/DB#\\d+/ Changing DataFile encryption key"
   doc_read_rev_tree:
     regex: "Need to read rev-tree of doc '(?<doc_id>\\S+)'"
     captures:
       doc_id: String # Document ID
+  doc_read_outdated:
+    regex: "Couldn't read matching rev-tree of doc '(?<doc_id>\\S+)'; it's been updated"
+    captures:
+      doc_id: String # Document ID
+  doc_property_decrypt_failed:
+    regex: "Unable to decrypt doc '(?<doc_id>\\S+)' property '(?<property>\\S+)': (?<error>.*)"
+    captures:
+      doc_id: String # Document ID
+      property: String # Property name
+      error: String # Error message
+  vectordoc_resolved_conflict:
+    regex: "Resolved conflict in '(?<doc_id>\\S+)' between #(?<local_rev>.+) and #(?<remote_rev>.+) -> #(?<merged_rev>.+)"
+    captures:
+      doc_id: String # Document ID
+      local_rev: String # Revision ID 1
+      remote_rev: String # Revision ID 2
+      merged_rev: String # Winning revision ID
+  treedoc_resolved_conflict:
+    regex: "Resolved conflict, adding rev '(?<doc_id>\\S+)' #(?<rev_id>.+)"
+    captures:
+      doc_id: String # Document ID
+      rev_id: String # Revision ID
+  treedoc_server_branch_switch:
+    regex: "c4doc_put detected server-side branch-switch: \"(?<doc_id>\\S+)\" (?<rev_id>.+) to (?<new_rev_id>.+); (?<effect>.*)"
+    captures:
+      doc_id: String # Document ID
+      rev_id: String # Revision ID
+      new_rev_id: String # New revision ID
+      effect: String # Effect of the branch switch
+  housekeeper_started:
+    regex: "/Housekeeper#\\d+/ Housekeeper: started"
   housekeeper_monitor:
     regex: "Housekeeper: opening background database"
+  housekeeper_expiring_docs:
+    regex: "Housekeeper: expiring documents"
+  repl_instantiated:
+    regex: "Repl#\\d+/ DB=(?<repl_db>\\S+) Instantiated"
+    captures:
+      repl_db: String # Repl database object (i.e. "DB#5929")
   repl_conflict_scan:
     regex: "Found (?<num_conflicts>\\d+) conflicted docs in"
     captures:
       num_conflicts: Int # Number of conflicts
+  repl_conflict_scan_start:
+    regex: "Repl#\\d+/ Coll=\\d+ Scanning for pre-existing conflicts..."
+    ignore: true
   repl_connected:
-    regex: "/Repl#\\d+/ Connected!"
+    regex: "Repl#\\d+/ Connected!"
   repl_closed:
-    regex: "/Repl#\\d+/ Connection closed with (?<reason>.*): \"(?<message>.*)\" \\(state=(?<from_state>\\d+)->(?<to_state>(-)?\\d+)\\)"
+    regex: "Repl#\\d+/ Connection closed with (?<reason>.*): \"(?<message>.*)\" \\(state=(?<from_state>\\d+)->(?<to_state>(-)?\\d+)\\)"
     captures:
       reason: String # Reason for closure
       message: String # Close message
       from_state: Int # From state (integer enum == Connection::State)
       to_state: Int # To state (integer enum == Connection::State)
+  repl_oneshot_complete:
+    regex: "Repl#\\d+/ Replication complete! Closing connection"
   repl_activity_update:
     regex: "activityLevel=(?<activity>\\S+): connectionState=(?<connection_state>\\d), savingChkpt=(?<saving_checkpoint>\\d+)"
     captures:
@@ -99,34 +200,119 @@ events:
       total: Int # Total number of items
       doc_count: Int # Number of documents
   repl_save_local_checkpoint:
-    regex: "Saved local checkpoint '(?<checkpoint_id>\\S+)': \\{\"time\":(?<time>\\d+),\"local\":(?<checkpoint>\\d+)\\}"
+    regex: "Coll=(?<collection_id>\\d+) Saved local checkpoint '(?<checkpoint_id>\\S+)': (?<checkpoint_json>\\{.*\\})"
     captures:
+      collection_id: Int # Collection ID
       checkpoint_id: String # Checkpoint doc ID
-      time: Int # Time
-      checkpoint: Int # Checkpoint
+      checkpoint_json: String # Checkpoint JSON
   repl_save_remote_checkpoint:
-    regex: "Saved remote checkpoint '(?<checkpoint_id>\\S+)' as rev='(?<checkpoint_rev_id>\\S+)'"
+    regex: "Saved remote checkpoint '(?<checkpoint_id>\\S+)' as rev='(?<checkpoint_rev_id>.+)'"
     captures:
       checkpoint_id: String # Checkpoint doc ID
       checkpoint_rev_id: String # Checkpoint revision ID
-  repl_request_checkpoint:
+  repl_ignore_local_checkpoint:
+    regex: "Repl#\\d+/ Coll=(?<collection_id>\\d+) Ignoring local checkpoint \\('reset' option is set\\)"
+    captures:
+      collection_id: Int # Collection ID
+  repl_get_local_checkpoint:
+    regex: "Repl#\\d+/ Coll=(?<collection_id>\\d+) Read local checkpoint '(?<checkpoint_id>\\S+)': (?<checkpoint_json>\\{.*\\})"
+    captures:
+      collection_id: Int # Collection ID
+      checkpoint_id: String # Checkpoint ID
+      checkpoint_json: String # Checkpoint JSON
+  repl_no_local_checkpoint:
+    regex: "Repl#\\d+/ Coll=(?<collection_id>\\d+) No local checkpoint '(?<checkpoint_id>\\S+)'"
+    captures:
+      collection_id: Int # Collection ID
+      checkpoint_id: String # Checkpoint ID
+  repl_get_collection_checkpoint:
     regex: "Request to get peer checkpoint '(?<checkpoint_id>\\S+)' for collection"
     captures:
       checkpoint_id: String # Checkpoint ID
+  repl_checkpoint_request:
+    regex: "Request to (?<mode>(get)|(set)) peer checkpoint '(?<checkpoint_id>\\S+)'"
+    captures:
+      mode: String # 'get' or 'set'
+      checkpoint_id: String # Checkpoint ID
+  repl_receive_remote_checkpoint:
+    regex: "Repl#\\d+/( Coll=)?(?<collection_id>\\d*) Received remote checkpoint \\(rev='(?<checkpoint_rev_id>.+)'\\):\\s?(?<checkpoint_json>(\\{.*\\})?)"
+    captures:
+      collection_id: !DefaultedInt -1 # Collection ID
+      checkpoint_rev_id: String # Checkpoint revision ID
+      checkpoint_json: String # Checkpoint JSON
+  repl_no_remote_checkpoint:
+    regex: "Repl#\\d+/( Coll=)?(?<collection_id>\\d*) No remote checkpoint '(?<checkpoint_id>\\S+)'"
+    captures:
+      collection_id: !DefaultedInt -1 # Collection ID
+      checkpoint_id: String # Checkpoint ID
   repl_document_ended:
-    regex: "documentEnded (?<doc_id>\\S+) (?<rev_id>\\S+) flags=(?<flags>\\d+) \\((?<error_domain>\\d+)/(?<error_code>\\d+)\\)"
+    regex: "Repl#\\d+/ documentEnded (?<doc_id>\\S+) (?<rev_id>.+) flags=(?<flags>\\S+) \\((?<error_domain>\\d+)/(?<error_code>\\d+)\\)"
     captures:
       doc_id: String # Document ID
       rev_id: String # Revision ID
-      flags: Int # Rev Flags
+      flags: HexInt # Rev Flags
       error_domain: Int # Error domain
       error_code: Int # Error code
   repl_told_stop:
-    regex: "/Repl#\\d+/ Told to stop!"
-  puller_start:
-    regex: "Starting pull from remote seq '(?<sequence>\\d+)'"
+    regex: "Repl#\\d+/ Told to stop!"
+  repl_request_no_collection:
+    regex: '"collection" property is not present in the request; 0 is used'
+  repl_err_stop_fatal:
+    regex: "/Repl#\\d+/ Stopping due to fatal error: (?<error>.*)"
     captures:
-      sequence: Int # Sequence number
+      error: String # Error message
+  repl_err_stop_transient:
+    regex: "/Repl#\\d+/ Stopping due to error: (?<error>.*)"
+    captures:
+      error: String # Error message
+  repl_remote_going_away:
+    regex: "Repl#\\d+/ I didn't initiate the close; treating this as code 1001 \\(GoingAway\\)"
+  c4repl_status_update:
+    regex: "/C4\\w*Repl#\\d+/ State: (?<state>\\S+), progress=(?<progress>\\d+.\\d+)%(, error=)?(?<error>.*)"
+    captures:
+      state: String # State (i.e. 'stopped', 'idle', 'busy')
+      progress: Float # Progress
+      error: String # Error message
+  c4repl_status_update_duplicate:
+    regex: "\\*\\*\\* C4Replicator state: .*"
+    ignore: true
+  c4repl_start:
+    regex: "/C4\\w*Repl#\\d+/ Starting Replicator (?<repl_object>(Repl|PsvRepl)#\\d+) with config: .*"
+    captures:
+      repl_object: String # Repl object
+  c4repl_suspended:
+    regex: "/C4\\w*Repl#\\d+/ Suspended"
+  c4repl_free:
+    regex: "/C4\\w*Repl#\\d+/ Freeing C4BaseReplicator"
+    ignore: true
+  c4repl_transient_retry:
+    regex: "/C4\\w*Repl#\\d+/ Transient error \\((?<error>.*)\\); attempt #(?<next_attempt>\\d+) in (?<retry_delay>\\d+) sec"
+    captures:
+      error: String # Error message
+      next_attempt: Int # Next attempt number
+      retry_delay: Int # Retry delay
+  c4repl_ignore_suspend:
+    regex: "/C4\\w*Repl#\\d+/ Ignoring a suspend call on a (stopping|stopped) replicator"
+  c4repl_restart_suspending:
+    regex: "/C4\\w*Repl#\\d+/ Request to unsuspend, but Replicator is already suspending\\.  Will restart after suspending process is completed\\."
+  c4repl_suspend_spam:
+    regex: "/C4\\w*Repl#\\d+/ Replicator suspension process being spammed \\(.*\\), attempting to cancel restart"
+  c4repl_retrying_connection:
+    regex: "/C4\\w*Repl#\\d+/ Retrying connection to (?<url>.*) \\(attempt #(?<attempt>\\d+)\\)"
+    captures:
+      url: String # URL
+      attempt: Int # Attempt number
+  c4repl_give_up:
+    regex: "/C4\\w*Repl#\\d+/ Will not retry; max retry count \\((?<max_retries>\\d+)\\) reached"
+    captures:
+      max_retries: Int # Max retry count
+  c4repl_schedule_restart:
+    regex: "Rapid call to start\\(\\) \\(stop\\(\\) is not finished yet\\), scheduling a restart"
+  puller_start:
+    regex: "/Puller#\\d+/ Coll=(?<collection_id>\\d+) Starting pull from remote seq '(?<sequence>.*)'"
+    captures:
+      collection_id: Int # Collection ID
+      sequence: !DefaultedInt 0 # Remote sequence number
   pusher_start:
     regex: "Starting (continuous )?push from local seq #(?<sequence>\\d+)"
     captures:
@@ -140,75 +326,299 @@ events:
     regex: "Peer is pulling (continuous )?changes from seq #(?<sequence>\\d+)"
     captures:
       sequence: Int # Sequence number
+  pusher_retry_differing:
+    regex: "Remote reported different rev of '(?<doc_id>\\S+)' \\(mine: (?<my_rev>.*) theirs: (?<remote_rev>.*)\\); retrying push"
+    captures:
+      doc_id: String # Document ID
+      my_rev: String # Local revision ID
+      remote_rev: String # Remote revision ID
+  pusher_retrying_docs:
+    regex: "/Pusher#\\d+/ Coll=(?<collection_id>\\d+) (?<num_docs>\\d+) documents failed to push and will be retried now"
+    captures:
+      collection_id: Int # Collection ID
+      num_docs: Int # Number of documents
   puller_handled_revs:
     regex: "(?<handled>\\d+) revs were provisionally handled; down to (?<pending>\\d+) revs"
     captures:
       handled: Int # Number of handled revisions
       pending: Int # Number of pending revisions
+  puller_enable_revocations:
+    regex: "/Puller#\\d+/ Coll=(?<collection_id>\\d+) msg\\[\"revocations\"\\]=\"true\" due to enableAutoPurge\\(\\)=(?<auto_purge>\\d) or progressNotificationLevel\\(\\)=(?<progress_notif_level>\\d+) > 0"
+    captures:
+      collection_id: Int # Collection ID
+      auto_purge: Bool # Auto purge enabled
+      progress_notif_level: Int # Progress notification level
   pusher_no_changes:
     regex: "Found 0 changes up to #(?<sequence>\\d+)"
     captures:
       sequence: Int # Sequence number
   pusher_found_changes:
-    regex: "Read (?<num_changes>\\d+) local changes up to #(?<sequence>\\d+): sending '(?<request>\\w+)' with sequences #(?<start_seq>\\d+) - (?<end_seq>\\d+)"
+    regex: "Read (?<num_changes>\\d+) local changes up to #(?<sequence>\\d+): sending '(?<request>\\w+)' with sequences #(?<start_seq>\\d+) - #(?<end_seq>\\d+)"
     captures:
       num_changes: Int # Number of changes
       sequence: Int # Last sequence
       request: String # Request type ('changes' or 'proposeChanges')
       start_seq: Int # Start sequence number for changes
       end_seq: Int # End sequence number for changes
+  pusher_skip_obsolete:
+    regex: "/Pusher#\\d+/ Coll=(?<collection_id>\\d+) Revision '(?<doc_id>\\S+)' #(?<rev_id>.+) is obsolete; not sending it"
+    captures:
+      collection_id: Int # Collection ID
+      doc_id: String # Document ID
+      rev_id: String # Revision ID
+  pusher_changes_response:
+    regex: "Got response for (?<num_changes>\\d+) local changes \\(sequences from (?<start_seq>\\d+)\\)"
+    captures:
+      num_changes: Int # Number of changes
+      start_seq: Int # Start sequence number of changes
+  pusher_checkpoint_update:
+    regex: "/Pusher#\\d+/ Coll=(?<collection_id>\\d+) Checkpoint now (?<sequence_set>\\[.*\\])"
+    captures:
+      collection_id: Int # Collection ID
+      sequence_set: String # Sequence set i.e. '[24-57]', '[24-57, 124, 296-381]'
+  pusher_proposed_conflict:
+    regex: "/Pusher#\\d+/ Coll=(?<collection_id>\\d+) Proposed rev '(?<doc_id>\\S+)' #(?<rev_id>.+) \\(ancestor (?<ancestor_id>.*)\\) conflicts with server revision \\((?<server_rev_id>.+)\\)"
+    captures:
+      collection_id: Int # Collection ID
+      doc_id: String # Document ID
+      rev_id: String # Revision ID
+      ancestor_id: String # Ancestor revision ID (may be empty)
+      server_rev_id: String # Server revision ID
+  pusher_rev_conflict:
+    regex: "/Pusher#\\d+/ Coll=(?<collection_id>\\d+) Rev '(?<doc_id>\\S+)' #(?<rev_id>.+) conflicts with newer server revision"
+    captures:
+      collection_id: Int # Collection ID
+      doc_id: String # Document ID
+      rev_id: String # Revision ID
+  pusher_proposed_invalid_ancestor:
+    regex: "/Pusher#\\d+/ Coll=(?<collection_id>\\d+) Proposed rev '(?<doc_id>\\S+)' #(?<rev_id>.+) has invalid ancestor (?<ancestor_id>\\S+)"
+    captures:
+      collection_id: Int # Collection ID
+      doc_id: String # Document ID
+      rev_id: String # Revision ID
+      ancestor_id: String # Ancestor revision ID
+  pusher_may_retry_conflict:
+    regex: "/Pusher#\\d+/ Coll=(?<collection_id>\\d+) Will try again if remote rev of '(?<doc_id>\\S+)' is updated"
+    captures:
+      collection_id: Int # Collection ID
+      doc_id: String # Document ID
+  pusher_got_error_response:
+    regex: "Got (transient )?error response to rev '(?<doc_id>\\S+)' #(?<rev_id>.+) \\(seq #(?<sequence>\\d+)\\): (?<domain>\\S+) (?<code>\\d+) '(?<message>.*)'"
+    captures:
+      doc_id: String # Document ID
+      rev_id: String # Revision ID
+      sequence: Int # Sequence number
+      domain: String # Error domain
+      code: Int # Error code
+      message: String # Error message
+  pusher_read_delayed_change:
+    regex: "Read delayed local change '(?<doc_id>\\S+)' #(?<rev_id>.+) \\(remote #(?<remote_rev_id>.*)\\): sending '(?<changes_type>.*)' with sequence #(?<sequence>\\d+)"
+    captures:
+      doc_id: String # Document ID
+      rev_id: String # Revision ID
+      remote_rev_id: String # Remote revision ID (may be empty)
+      changes_type: String # Changes type ('changes' or 'proposeChanges')
+      sequence: Int # Sequence number
+  pusher_filter_requested:
+    regex: "/Pusher#\\d+/ Coll=(?<collection_id>\\d+) Peer requested filter '(?<filter>.*)'"
+    captures:
+      collection_id: Int # Collection ID
+      filter: String # Filter expression
+  pusher_cannot_get_rev:
+    regex: "sendRevision: Couldn't get rev '(?<doc_id>\\S+)' (?<rev_id>.+) from db: (?<error>.*)"
+    captures:
+      doc_id: String # Document ID
+      rev_id: String # Revision ID
+      error: String # Error message
+  checkpoint_sequence_mismatch:
+    regex: "Local sequence mismatch: I had completed: (?<local_seq>.*), remote had (?<remote_seq>.*)\\."
+    captures:
+      local_seq: String # Local sequence set i.e. '[24-57]' or '[24-57, 124, 296-381]'
+      remote_seq: String # Remote sequence set i.e. '[24-57]' or '[24-57, 124, 296-381]'
+  checkpoint_sequence_mismatch_duplicate:
+    regex: "Rolling back to a failsafe, some redundant changes may be proposed"
+    ignore: true
   revfinder_caught_up:
     regex: "/RevFinder#\\d+/ Coll=(?<collection_id>\\d+) Caught up with remote changes"
     captures:
       collection_id: Int # Collection ID
   revfinder_update_remote:
-    regex: "Updating remote #(?<remote_id>\\d+)'s rev of '(?<doc_id>\\S+)' to (?<rev_id>\\S+) of collection (?<collection>\\S+)"
+    regex: "Updating remote #(?<remote_id>\\d+)'s rev of '(?<doc_id>\\S+)' to (?<rev_id>.+) of collection (?<collection>\\S+)"
     captures:
       remote_id: Int # Remote ID
       doc_id: String # Document ID
       rev_id: String # Revision ID
       collection: String # Collection (i.e. "_default" or "flowers.tulips")
   revfinder_request_revs:
-    regex: "/RevFinder#\\d+/ Coll=(?<collection_id>\\d+) Responded to '(?<request>\\w+)' REQ#(?<request_id>\\d+) w/request for (?<num_revs>\\d+) revs in (?<elapsed_time>\\d+.\\d+) sec"
+    regex: "/RevFinder#\\d+/ Coll=(?<collection_id>\\d+) Responded to '(?<request>\\w+)' REQ#(?<request_id>\\d+) w/request for (?<num_revs>\\d+) revs in (?<elapsed_secs>\\d+.\\d+) sec"
     captures:
       collection_id: Int # Collection ID
       request: String # Request type
       request_id: Int # Request ID
       num_revs: Int # Number of revisions
-      elapsed_time: Float # Elapsed time for finding revs and responding to request
+      elapsed_secs: Float # Elapsed time for finding revs and responding to request
   revfinder_received_changes:
     regex: "/RevFinder#\\d+/ Coll=(?<collection_id>\\d+) Received (?<num_changes>\\d+) changes \\(seq '(?<sequence>\\S+)'"
     captures:
       collection_id: Int # Collection ID
       num_changes: Int # Number of changes
       sequence: String # Sequence number
+  revfinder_received_proposed:
+    regex: "/RevFinder#\\d+/ Coll=(?<collection_id>\\d+) Received (?<num_changes>\\d+) changes$"
+    captures:
+      collection_id: Int # Collection ID
+      num_changes: Int # Number of changes
+  revfinder_reject_proposed:
+    regex: "/RevFinder#\\d+/ Coll=(?<collection_id>\\d+) Rejecting proposed change '(?<doc_id>\\S+)' #(?<rejected_rev>.+) with parent (?<parent_rev>.*) \\(status (?<status>\\d+); current rev is (?<current_rev>\\S+)\\)"
+    captures:
+      collection_id: Int # Collection ID
+      status: Int # Status
+      doc_id: String # Document ID
+      rejected_rev: String # Rejected (conflicting) revision ID
+      parent_rev: String # Common ancestor revision ID (may be empty)
+      current_rev: String # Current revision ID
+  changesfeed_no_changes:
+    regex: "/ChangesFeed#\\d+/ No new observed changes..."
+  changesfeed_filter_requested:
+    regex: "/ChangesFeed#\\d+/ Peer requested filtering to (?<num_doc_ids>\\d+) docIDs"
+    captures:
+      num_doc_ids: Int # Number of document IDs
   inserter_insert_rev:
-    regex: "/Inserter#\\d+/\\s+\\{'(?<doc_id>\\S+) \\((?<collection>\\S+)\\)' #(?<rev_id>\\S+) <- (?<rev_history>\\S*)\\} seq (?<sequence>\\d+)"
+    regex: "/Inserter#\\d+/\\s+\\{'(?<doc_id>\\S+) \\((?<collection>\\S+)\\)' #(?<rev_id>.+) <- (?<rev_history>\\S*)\\} seq (?<sequence>\\d+)"
     captures:
       doc_id: String # Document ID
       collection: String # Collection name
       rev_id: String # Revision ID
       rev_history: String # Revision history
       sequence: Int # Sequence number
+  inserter_finished_revs:
+    regex: "/Inserter#\\d+/ Coll=(?<collection_id>\\d+) Inserted \\s*(?<num_revs>\\d+) revs in \\s*(?<elapsed_ms>\\d+.\\d+)ms \\(\\s*\\d+/sec\\) of which (?<commited>\\d+.\\d+)% was commit"
+    captures:
+      collection_id: Int # Collection ID
+      num_revs: Int # Number of revs inserted
+      elapsed_ms: Float # Elapsed time to insert revs
+      commited: Float # Percentage of data fully committed
   inserter_create_conflict:
-    regex: "Created conflict with '(?<doc_id>\\S+) (?<collection>\\S+)' #(?<rev_id>\\S+)"
+    regex: "Created conflict with '(?<doc_id>\\S+) (?<collection>\\S+)' #(?<rev_id>.+)"
     captures:
       doc_id: String # Document ID
       collection: String # Collection name
       rev_id: String # Revision ID
-  incoming_rev_received:
-    regex: "/IncomingRev#\\d+/ Coll=(?<collection_id>\\d+) Received revision '(?<doc_id>\\S+)' #(?<rev_id>\\S+) \\(seq '(?<sequence>\\S+)'\\)"
+  inserter_insert_failed:
+    regex: "/Inserter#\\d+/ Coll=(?<collection_id>\\d+) Failed to insert '(?<doc_id>\\S+)' #(?<rev_id>.+) : (?<error>\\S+)"
+    captures:
+      collection_id: Int # Collection ID
+      doc_id: String # Document ID
+      rev_id: String # Revision ID
+      error: String # Error message
+  incomingrev_received:
+    regex: "/IncomingRev#\\d+/ Coll=(?<collection_id>\\d+) Received revision '(?<doc_id>\\S+)' #(?<rev_id>.+) \\(seq '(?<sequence>\\S+)'\\)"
     captures:
       collection_id: Int # Collection ID
       doc_id: String # Document ID
       rev_id: String # Revision ID
       sequence: String # Sequence number
+  incomingrev_failed:
+    regex: "/IncomingRev#\\d+/ Coll=(?<collection_id>\\d+) failed with error: (?<error>\\S+)"
+    captures:
+      collection_id: Int # Collection ID
+      error: String # Error message
+  incomingrev_open_blob_writer:
+    regex: "/IncomingRev#\\d+/ Coll=(?<collection_id>\\d+) There are now (?<num_writers>\\d+) blob writers open"
+    captures:
+      collection_id: Int # Collection ID
+      num_writers: Int # Number of blob writers open
+  incomingrev_removed:
+    regex: "/IncomingRev#\\d+/ Coll=(?<collection_id>\\d+) Receiving removed rev \"(?<collection>\\S+\\.\\S+)\\.(?<doc_id>\\S+)/(?<rev_id>\\S+)\""
+    captures:
+      collection_id: Int # Collection ID
+      collection: String # Collection (ie 'flowers.tulips')
+      doc_id: String # Document ID
+      rev_id: String # Revision ID
   worker_status_change:
     regex: "status=(?<status>\\S+) from=(?<prev_status>\\S+) reason=(?<reason>\\S+)"
     captures:
       status: String # Worker status
       prev_status: String # Previous status
       reason: String # Reason for status change
+  worker_error:
+    regex: "\\d+/ Got LiteCore error: (?<error>\\.*)"
+    captures:
+      error: String # Error message
+  worker_error_response:
+    regex: "Coll=(?<collection_id>\\d+) Got error response: (?<domain>\\S+) (?<code>\\d+) '(?<message>.*)'"
+    captures:
+      collection_id: Int # Collection ID
+      domain: String # Error domain
+      code: Int # Error code
+      message: String # Error message
+  query_compile_start:
+    regex: "/Query#\\d+/ Compiling (?<lang>\\w+) query: (?<query>.+)"
+    captures:
+      lang: String # Query language ("JSON" or "N1QL")
+      query: String # Query string
+  query_compiled:
+    regex: "/Query#\\d+/ Compiled as (?<sql>.+)"
+    captures:
+      sql: String # SQL query
+  query_invalid:
+    regex: "Invalid LiteCore query: (?<error>.*)"
+    captures:
+      error: String # Error message
+  query_predictive_invalid_param:
+    regex: "Parameter of prediction\\(\\) must be a dictionary"
+  query_predictive_unknown_model:
+    regex: "Unknown ML model name '(?<model_name>\\S+)'"
+    captures:
+      model_name: String # Model name
+  query_close:
+    regex: "/Query#\\d+/ Closing query \\(db is closing\\)"
+  query_fts_stemming_unsupported:
+    regex: "FTS does not support stemming for language code '(?<language>.*)'; ignoring it"
+    captures:
+      language: String # ISO language code (may be empty)
+  index_create_start:
+    regex: "Creating (?<index_type>\\S+) index:\\s?(?<sql>.*)"
+    captures:
+      index_type: String # Index type
+      sql: String # Index SQL
+  index_create_done:
+    regex: "Created index '(?<index_name>\\S+)' in (?<elapsed_secs>\\d+.\\d+) sec"
+    captures:
+      index_name: String # Index name
+      elapsed_secs: Float # Elapsed time to create index
+  index_drop_unused_table:
+    regex: "Dropping unused index table '(?<table_name>\\S+)'"
+    captures:
+      table_name: String # Table name
+  index_delete:
+    regex: "Deleting (?<index_type>\\S+) index '(?<index_name>\\S+)'"
+    captures:
+      index_type: String # Index type (i.e. "full-text")
+      index_name: String # Index name
+  queryenum_created:
+    regex: "/QueryEnum#\\d+/ Created on \\{(?<query>.+)\\} with (?<num_rows>\\d+) rows \\((?<num_bytes>\\d+) bytes\\) in (?<elapsed_ms>\\d+.\\d+)ms"
+    captures:
+      query: String # Query string
+      num_rows: Int # Number of rows
+      num_bytes: Int # Number of bytes
+      elapsed_ms: Float # Elapsed time to create query enum
+  queryenum_deleted:
+    regex: "/QueryEnum#\\d+/ Deleted"
+    ignore: true
+  hlc_receive_future:
+    regex: "HybridClock: received time 0x(?<received_time>\\S+) is too far in the future \\(local time is 0x(?<local_time>\\S+)\\)"
+    captures:
+      received_time: String # Received time
+      local_time: String # Local time
+  hlc_receive_past:
+    regex: "HybridClock: received time 0x(?<received_time>\\S+) is too far in the past"
+    captures:
+      received_time: HexInt # Received time
+  hlc_receive_invalid:
+    regex: "Hybrid Clock: received time 0x(?<received_time>\\S+) is invalid; distant future"
+    captures:
+      received_time: String # Received time
   blip_send_request_start:
     regex: "Sending '(?<request>\\w+)' REQ #(?<id>\\d+)"
     captures:
@@ -250,3 +660,101 @@ events:
       no_reply: Char # No reply expected
       compressed: Char # Compressed message
       length: Int # Message length
+  blip_close_status:
+    regex: "BLIP sent (?<num_sent>\\d+) msgs \\((?<num_bytes_sent>\\d+) bytes\\), rcvd (?<num_received>\\d+) msgs \\((?<num_bytes_received>\\d+) bytes\\) in (?<elapsed_secs>\\d+.\\d+) sec. Max outbox depth was (?<max_outbox_depth>\\d+), avg (?<avg_outbox_depth>\\S+)"
+    captures:
+      num_sent: Int # Number of messages sent
+      num_received: Int # Number of messages received
+      num_bytes_sent: Int # Number of bytes sent
+      num_bytes_received: Int # Number of bytes received
+      elapsed_secs: Float # Elapsed time
+      max_outbox_depth: Int # Maximum outbox depth
+      avg_outbox_depth: !DefaultedFloat 0.0 # Average outbox depth. Needs default because it may be logged as "NaN" in 3.2.0
+  keystore_create_trigger:
+    regex: "\\.\\.\\.for index: CREATE TRIGGER \"(?<trigger_name>\\S+)::(?<trigger_suffix>\\w+)\" (?<operation>.*) ON \"(?<table_name>\\S+)\" (WHEN)?(?<condition>.*)\\s* BEGIN (?<statements>.*); END"
+    captures:
+      trigger_name: String # Trigger name
+      trigger_suffix: String # Trigger suffix
+      operation: String # Operation (INSERT, UPDATE, DELETE)
+      table_name: String # Table name
+      condition: String # Condition for trigger
+      statements: String # Triggered statements
+  keystore_create_predictive_table:
+    regex: "Creating predictive table '(?<table_name>\\S+)' on (?<expression>.*)"
+    captures:
+      table_name: String # Table name
+      expression: String # Predictive index expression (JSON query)
+  keystore_create_unnest_table:
+    regex: "Creating UNNEST table '(?<table_name>\\S+)' on (?<expression>.*)"
+    captures:
+      table_name: String # Table name
+      expression: String # UNNEST expression (JSON query)
+  tls_error:
+    regex: "TLS ERROR mbedTLS\\((?<side>C|S)\\): (?<error>.*)"
+    captures:
+      side: Char # Client or server (C or S)
+      error: String # Error message
+  ws_unwritable:
+    regex: "writeToWebSocket cannot start, unwritable!"
+  ws_error:
+    regex: "WS ERROR TCPSocket (?<error>.*)"
+    captures:
+      error: String # Error message
+  ws_connect_failed:
+    regex: "WebSocket failed to connect! \\(reason=(?<reason>.*) (?<status_code>\\d+)\\)(?<message>( .*)?)"
+    captures:
+      reason: String # Reason for failure
+      status_code: Int # HTTP status code
+      message: String # Error message
+  ws_posix_error:
+    regex: "(?<socket_type>ClientSocket|ResponderSocket) got POSIX error (?<code>\\d+) \"(?<error>.*)\""
+    captures:
+      socket_type: String # Socket type ('ClientSocket' or 'ResponderSocket')
+      code: Int # POSIX error code
+      error: String # Error message
+  ws_closed_refuse_send:
+    regex: "/WebSocket#\\d+/ sendOp refusing to send msg type (?<message_type>\\d+) after close"
+    captures:
+      message_type: Int # Message type
+  collection_closing:
+    regex: "/Collection#\\d+/ Closing"
+    ignore: true
+  collection_closed:
+    regex: "/Collection#\\d+/ Closed"
+    ignore: true
+  rest_deny_incoming:
+    regex: "Error accepting incoming connection: (?<error>.*)"
+    captures:
+      error: String # Error message
+  rest_illegal_cookie_domain:
+    regex: "Cookie Domain isn't legal because it is not a subdomain of the host"
+  rest_reject_invalid_cookie:
+    regex: "Rejecting invalid cookie in setCookie!"
+  rest_cookie_parse_fail:
+    regex: "Couldn't parse (?<property>.*) in cookie"
+    captures:
+      property: String # Cookie property which failed to parse
+  rest_set_cookie_parse_fail:
+    regex: "Couldn't parse Set-Cookie header:\\s?(?<header>.*)"
+    captures:
+      header: String # Set-Cookie header which failed to parse
+  sqlite_error:
+    regex: "SQLite error \\(code (?<code>\\d+)\\): (?<error>.*)"
+    captures:
+      code: Int # SQLite error code
+      error: String # Error message
+  sqlite_constraint_failed:
+    regex: "SQLite message: (?<error>.*)"
+    captures:
+      error: String # Error message
+  sql_error_duplicate:
+    regex: "\\d+ SQL ERROR .*"
+    ignore: true
+  file_async_delete_replaced:
+    regex: "Finished async delete of replaced "
+    ignore: true
+  mbedtls_seed_rng:
+    regex: "Seeding the mbedTLS random number generator\\.\\.\\."
+  litecore_test_identifier:
+    regex: "This is LiteCore .* short version .*"
+    ignore: true

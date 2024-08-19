@@ -27,6 +27,9 @@ struct Args {
     #[arg(long)]
     /// Enable trace logging
     trace: bool,
+    #[arg(long)]
+    /// Reduce and coalesce similar log lines in trace output. Useful when dealing with a large number of parsing errors.
+    reduce_lines: bool,
 }
 
 #[derive(Error, Debug)]
@@ -68,7 +71,11 @@ fn main() -> Result<()> {
 
     let db_path = out_dir.join(&db_file_name);
 
-    lumberjack_parse::parse(&in_dir, &db_path)?;
+    let parser_options = lumberjack_parse::Options {
+        reduce_lines: args.reduce_lines,
+    };
+
+    lumberjack_parse::parse(&in_dir, &db_path, parser_options)?;
 
     #[cfg(feature = "xlsx")]
     if args.xlsx {

@@ -458,8 +458,22 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
             }
         }
 
-        for (event_key, Event { captures, .. }) in &patterns.events {
-            if let Some(captures) = captures {
+        for (
+            event_key,
+            Event {
+                captures, ignore, ..
+            },
+        ) in &patterns.events
+        {
+            if ignore.is_some_and(|i| i) {
+                write_out!(
+                    out_file_writer,
+                    "        if patterns.events[\"{}\"].is_match(line) {{\n",
+                    "            return Err(Error::IgnoredEvent);\n",
+                    "        }}\n",
+                    args!(event_key)
+                );
+            } else if let Some(captures) = captures {
                 write_out!(
                     out_file_writer,
                     "        if let Some(captures) = patterns.events[\"{}\"].captures(line) {{\n",
@@ -483,6 +497,42 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
                                 "                        != 0\n",
                                 "                }},\n",
                                 args!(key)
+                            );
+                        }
+                        CaptureType::HexInt => {
+                            write_out!(
+                                out_file_writer,
+                                "                {{\n",
+                                "                    captures\n",
+                                "                        .name(\"{}\")\n",
+                                "                        .and_then(|m| i64::from_str_radix(m.as_str(), 16).ok())\n",
+                                "                        .unwrap()\n",
+                                "                }},\n",
+                                args!(key)
+                            );
+                        }
+                        CaptureType::DefaultedInt(default) => {
+                            write_out!(
+                                out_file_writer,
+                                "                {{\n",
+                                "                    captures\n",
+                                "                        .name(\"{}\")\n",
+                                "                        .and_then(|m| m.as_str().parse::<{}>().ok())\n",
+                                "                        .unwrap_or({})\n",
+                                "                }},\n",
+                                args!(key, capture_type, default)
+                            );
+                        }
+                        CaptureType::DefaultedFloat(default) => {
+                            write_out!(
+                                out_file_writer,
+                                "                {{\n",
+                                "                    captures\n",
+                                "                        .name(\"{}\")\n",
+                                "                        .and_then(|m| m.as_str().parse::<{}>().ok())\n",
+                                "                        .unwrap_or({:?})\n",
+                                "                }},\n",
+                                args!(key, capture_type, default)
                             );
                         }
                         _ => {
@@ -606,8 +656,11 @@ enum CaptureType {
     Bool,
     Char,
     Int,
+    HexInt,
     Float,
     String,
+    DefaultedInt(i64),
+    DefaultedFloat(f64),
 }
 
 impl Display for CaptureType {
@@ -616,8 +669,11 @@ impl Display for CaptureType {
             CaptureType::Bool => write!(f, "bool"),
             CaptureType::Char => write!(f, "char"),
             CaptureType::Int => write!(f, "i64"),
+            CaptureType::HexInt => write!(f, "i64"),
             CaptureType::Float => write!(f, "f64"),
             CaptureType::String => write!(f, "String"),
+            CaptureType::DefaultedInt(_) => write!(f, "i64"),
+            CaptureType::DefaultedFloat(_) => write!(f, "f64"),
         }
     }
 }
@@ -626,6 +682,7 @@ impl Display for CaptureType {
 struct Event {
     regex: String,
     captures: Option<BTreeMap<String, CaptureType>>,
+    ignore: Option<bool>,
 }
 
 fn snake_to_pascal_case(s: &str) -> String {

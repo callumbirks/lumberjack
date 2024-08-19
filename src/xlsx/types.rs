@@ -32,14 +32,6 @@ pub struct Line {
     object_path: Option<String>,
 }
 
-#[derive(Serialize)]
-pub struct Object {
-    id: i32,
-    #[serde(serialize_with = "serialize_to_string")]
-    object_type: lumberjack_parse::data::ObjectType,
-    data: Option<String>,
-}
-
 impl From<lumberjack_parse::data::File> for File {
     fn from(file: lumberjack_parse::data::File) -> Self {
         File {

@@ -19,6 +19,7 @@ pub struct Parser {
     files: Vec<PathBuf>,
     patterns: regex_patterns::Patterns,
     version: semver::Version,
+    options: Options,
 }
 
 pub struct ParserOutput {
@@ -26,8 +27,14 @@ pub struct ParserOutput {
     pub lines: Vec<Line>,
 }
 
+#[derive(Default, Clone, Copy)]
+pub struct Options {
+    /// Reduce and coalesce similar log lines in trace output. Useful when dealing with a large number of parsing errors.
+    pub reduce_lines: bool,
+}
+
 impl Parser {
-    pub fn new(path: &Path) -> Result<Self> {
+    pub fn new(path: &Path, options: Options) -> Result<Self> {
         let files = Self::find_log_files(path)?;
         if files.is_empty() {
             log::error!("No valid log files found at path {:?}!", path);
@@ -38,6 +45,7 @@ impl Parser {
             files,
             patterns,
             version,
+            options,
         })
     }
 
@@ -64,15 +72,9 @@ impl Parser {
             ));
         }
 
-        if timestamp.is_none() && !self.patterns.platform.full_timestamp {
-            return Err(Error::CannotParse(
-                "File has no timestamp and the log format specifies lines only have partial timestamps!".to_string(),
-            ));
-        }
-
         let timestamp = if let Some(timestamp) = timestamp {
             Ok(timestamp)
-        } else {
+        } else if self.patterns.platform.full_timestamp {
             match parse_timestamp(
                 &lines[0],
                 &self.patterns.platform.timestamp,
@@ -80,10 +82,25 @@ impl Parser {
                 &self.patterns.platform.timestamp_formats,
             ) {
                 Ok(Timestamp::Full(ts)) => Ok(ts),
-                Ok(Timestamp::Partial(_)) => unreachable!("It is already verified that either file has timestamp, or the format specifies full timestamps"),
-                Err(err) => Err(err)
+                Ok(Timestamp::Partial(_)) => unreachable!(),
+                Err(err) => Err(err),
             }
-        };
+        } else {
+            let meta = std::fs::metadata(path)?;
+            let created_seconds = meta
+                .created()?
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|_| {
+                    Error::CannotParse(format!("Could not get creation time for file {:?}!", path))
+                })?
+                .as_secs();
+
+            DateTime::from_timestamp(created_seconds as i64, 0)
+                .map(|dt| dt.naive_utc())
+                .ok_or_else(|| {
+                    Error::CannotParse(format!("Could not get creation time for file {:?}!", path))
+                })
+        }?;
 
         let line_count = lines.len();
 
@@ -91,8 +108,15 @@ impl Parser {
             id: index as i32,
             path: path.to_string_lossy().to_string(),
             level,
-            timestamp: timestamp.unwrap(),
+            timestamp,
         };
+
+        let do_log_line_errors = log::log_enabled!(log::Level::Trace);
+
+        // Used for reducing and coalescing lines / errors for debugging and building up formats.
+        // Can be expensive so only enable when needed. Disabled in release builds.
+        #[cfg(debug_assertions)]
+        let do_reduce_line_errors = do_log_line_errors && self.options.reduce_lines;
 
         let results: Vec<LineResult> =
             // For full timestamp, we can parse all lines in parallel.
@@ -104,11 +128,20 @@ impl Parser {
 
                     let Ok(line) = res else {
                         let err = res.unwrap_err();
-                        if log::log_enabled!(log::Level::Trace) {
+                        #[cfg(debug_assertions)]
+                        if do_reduce_line_errors {
                             let reduced_line = reduce_line(&line, &self.patterns);
-                            return LineResult::Err((err, reduced_line));
+                            return LineResult::Err((err, Some(reduced_line)));
+                        } else if do_log_line_errors {
+                            return LineResult::Err((err, Some(line)))
                         } else {
-                            return LineResult::Err((err, "".to_string()))
+                            return LineResult::Err((err, None))
+                        }
+                        #[cfg(not(debug_assertions))]
+                        if do_log_line_errors {
+                            return LineResult::Err((err, Some(line)))
+                        } else {
+                            return LineResult::Err((err, None))
                         }
                     };
 
@@ -127,7 +160,7 @@ impl Parser {
                 other => Either::Right(other),
             });
 
-        let (mut rollover_results, err_results): (Vec<Line>, Vec<(Error, String)>) =
+        let (mut rollover_results, err_results): (Vec<Line>, Vec<(Error, Option<String>)>) =
             results.into_par_iter().partition_map(|lr| match lr {
                 LineResult::Rollover(line) => Either::Left(line),
                 LineResult::Err((line, error)) => Either::Right((line, error)),
@@ -147,17 +180,17 @@ impl Parser {
             ok_results.push(line);
         }
 
-        let non_cbl_count = err_results
+        let ignored_err_count = err_results
             .par_iter()
-            .filter(|(err, _)| matches!(err, Error::NoDomain))
+            .filter(|(err, _)| matches!(err, Error::NoDomain | Error::IgnoredEvent))
             .count();
 
-        if log::log_enabled!(log::Level::Trace) {
+        if do_reduce_line_errors {
             let mut errors: HashMap<String, (Error, usize)> = HashMap::new();
 
             for (err, line) in err_results {
-                if !matches!(err, Error::NoDomain) {
-                    let entry = errors.entry(line).or_insert((err, 0));
+                if !matches!(err, Error::NoDomain | Error::IgnoredEvent) {
+                    let entry = errors.entry(line.unwrap()).or_insert((err, 0));
                     entry.1 += 1;
                 }
             }
@@ -170,14 +203,20 @@ impl Parser {
                     line
                 );
             }
+        } else if do_log_line_errors {
+            for (err, line) in err_results {
+                if !matches!(err, Error::NoDomain | Error::IgnoredEvent) {
+                    log::trace!("Failed to parse line with '{}': '{}'", err, line.unwrap());
+                }
+            }
         }
 
         log::debug!(
-            "Parsed '{}' with {} lines ({} CBL lines skipped due to error, {} non-CBL lines ignored)",
-            &file.path,
+            "Parsed {} lines from '{}' ({} CBL lines skipped due to error, {} insignificant lines ignored)",
             ok_results.len(),
-            line_count - ok_results.len() - non_cbl_count,
-            non_cbl_count,
+            &file.path,
+            line_count - ok_results.len() - ignored_err_count,
+            ignored_err_count,
         );
 
         Ok(ParserOutput {
@@ -277,7 +316,7 @@ enum LineResult {
     Ok(Line),
     Rollover(Line),
     /// Error and reduced line
-    Err((Error, String)),
+    Err((Error, Option<String>)),
 }
 
 struct ParserIter<'a> {
