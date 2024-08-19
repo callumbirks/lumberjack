@@ -30,15 +30,15 @@ thiserror = { workspace = true }
 members = ["parse"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Callum Birks <callumbirks@protonmail.com>"]
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/couchbaselabs/cbl-lumberjack"
 
 [workspace.dependencies]
-lumberjack_cli = { version = "0.2.0", path = "." }
-lumberjack_parse = { version = "0.2.0", path = "parse" }
+lumberjack_cli = { version = "0.3.0", path = "." }
+lumberjack_parse = { version = "0.3.0", path = "parse" }
 
 chrono = "0.4"
 clap = "4.5.4"
