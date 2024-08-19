@@ -185,6 +185,7 @@ impl Parser {
             .filter(|(err, _)| matches!(err, Error::NoDomain | Error::IgnoredEvent))
             .count();
 
+        #[cfg(debug_assertions)]
         if do_reduce_line_errors {
             let mut errors: HashMap<String, (Error, usize)> = HashMap::new();
 
@@ -204,6 +205,15 @@ impl Parser {
                 );
             }
         } else if do_log_line_errors {
+            for (err, line) in err_results {
+                if !matches!(err, Error::NoDomain | Error::IgnoredEvent) {
+                    log::trace!("Failed to parse line with '{}': '{}'", err, line.unwrap());
+                }
+            }
+        }
+
+        #[cfg(not(debug_assertions))]
+        if do_log_line_errors {
             for (err, line) in err_results {
                 if !matches!(err, Error::NoDomain | Error::IgnoredEvent) {
                     log::trace!("Failed to parse line with '{}': '{}'", err, line.unwrap());
