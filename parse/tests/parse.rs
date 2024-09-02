@@ -2,17 +2,21 @@ use std::{
     path::PathBuf,
     str::FromStr,
     time::{SystemTime, UNIX_EPOCH},
+    sync::Once,
 };
 
-#[test]
-fn parse_cpptest_logs() {
-    env_logger::builder().init();
+fn test_zero_errors(test_file_path: &str) {
+    static INIT_LOGGING: Once = Once::new();
+
+    INIT_LOGGING.call_once(|| {
+        env_logger::builder().init();
+    });
 
     let logs_path = PathBuf::from_str(env!("CARGO_MANIFEST_DIR"))
         .unwrap()
         .parent()
         .unwrap()
-        .join("test_data/cpptest.cbllog");
+        .join(format!("test_data/{}", test_file_path));
 
     let temp_dir = std::env::temp_dir()
         .join("lumberjack_test_parse/")
@@ -27,6 +31,16 @@ fn parse_cpptest_logs() {
         lumberjack_parse::parse(&logs_path, &db_path, lumberjack_parse::Options::default())
             .expect("Failed to parse");
     assert_eq!(err_count, 0);
+}
+
+#[test]
+fn cpptest_logs() {
+    test_zero_errors("cpptest.cbllog")
+}
+
+#[test]
+fn binary_logs() {
+    test_zero_errors("binary_logs")
 }
 
 // Returns a unique (within the same process) identifier every time it is called. Useful to run tests in parallel.

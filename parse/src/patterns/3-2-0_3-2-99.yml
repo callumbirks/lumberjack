@@ -312,7 +312,7 @@ events:
     captures:
       correlation_id: String # Correlation ID (SG context ID)
   c4repl_status_update:
-    regex: "/C4\\w*Repl#\\d+/ State: (?<state>\\S+), progress=(?<progress>\\d+.\\d+)%(, error=)?(?<error>.*)"
+    regex: "/C4\\w*Repl#\\d+/ State: (?<state>\\S+), progress=(?<progress>\\d+(.\\d+)?)%(, error=)?(?<error>.*)"
     captures:
       state: String # State (i.e. 'stopped', 'idle', 'busy')
       progress: Float # Progress
@@ -569,7 +569,7 @@ events:
       rev_history: String # Revision history
       sequence: Int # Sequence number
   inserter_finished_revs:
-    regex: "/Inserter#\\d+/ Coll=(?<collection_id>\\d+) Inserted \\s*(?<num_revs>\\d+) revs in \\s*(?<elapsed_ms>\\d+.\\d+)ms \\(\\s*\\d+/sec\\) of which (?<commited>\\d+.\\d+)% was commit"
+    regex: "/Inserter#\\d+/ Coll=(?<collection_id>\\d+) Inserted \\s*(?<num_revs>\\d+) revs in \\s*(?<elapsed_ms>\\d+.\\d+)ms \\(\\s*\\d+(\\.\\d+)?/sec\\) of which (?<commited>\\d+.\\d+)% was commit"
     captures:
       collection_id: Int # Collection ID
       num_revs: Int # Number of revs inserted
@@ -1003,3 +1003,5 @@ tests_only_ignored:
   - "Info Beginning binary logging to "
   - "Info (Non)?VirtCounty instance at"
   - "Info Got backtrace: "
+  - "Info ----+ PASS #\\d+"
+  - "Info ----+ \\d+\\.\\d+ sec with deltas"
