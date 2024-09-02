@@ -1,8 +1,8 @@
 use std::{
     path::PathBuf,
     str::FromStr,
-    time::{SystemTime, UNIX_EPOCH},
     sync::Once,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 fn test_zero_errors(test_file_path: &str) {
