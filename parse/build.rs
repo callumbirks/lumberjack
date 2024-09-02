@@ -116,6 +116,8 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
         "    pub platforms: Vec<&'static PlatformPatternStrings>,\n",
         "    pub object: &'static str,\n",
         "    pub events: HashMap<&'static str, &'static str>,\n",
+        "    #[cfg(debug_assertions)]\n",
+        "    pub tests_only_ignored: Vec<&'static str>,\n",
         "}\n\n",
     );
 
@@ -152,6 +154,8 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
         "    pub platform: PlatformPatterns,\n",
         "    pub object: Regex,\n",
         "    pub events: HashMap<&'static str, Regex>,\n",
+        "    #[cfg(debug_assertions)]\n",
+        "    pub tests_only_ignored: Vec<Regex>,\n",
         "}\n\n",
     );
 
@@ -204,6 +208,8 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
         "            platform: PlatformPatterns::from(platform),\n",
         "            object: Regex::new(patterns.object).unwrap(),\n",
         "            events: patterns.events.iter().map(|(k, v)| (*k, Regex::new(v).unwrap())).collect(),\n",
+        "            #[cfg(debug_assertions)]\n",
+        "            tests_only_ignored: patterns.tests_only_ignored.iter().map(|s| Regex::new(s).unwrap()).collect(),\n",
         "        }\n",
         "    }\n",
         "}\n\n",
@@ -304,7 +310,21 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
             );
         }
 
-        write_out!(out_file_writer, "      ]),\n", "    };\n");
+        write_out!(out_file_writer, "      ]),\n");
+
+        write_out!(
+            out_file_writer,
+            "        #[cfg(debug_assertions)]\n",
+            "        tests_only_ignored: vec![\n"
+        );
+
+        if let Some(tests_only_ignored) = &patterns.tests_only_ignored {
+            for regex in tests_only_ignored {
+                write_out!(out_file_writer, "            r#\"{}\"#,\n", args!(regex));
+            }
+        }
+
+        write_out!(out_file_writer, "        ],\n", "    };\n");
     }
 
     write_out!(out_file_writer, "}\n\n");
@@ -448,6 +468,19 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
                     );
                 }
                 write_out!(out_file_writer, "        }\n");
+            }
+        }
+
+        if let Some(tests_only_ignored) = &patterns.tests_only_ignored {
+            for i in 0..tests_only_ignored.len() {
+                write_out!(
+                    out_file_writer,
+                    "        #[cfg(debug_assertions)]\n",
+                    "        if patterns.tests_only_ignored[{}].is_match(line) {{\n",
+                    "            return Err(Error::IgnoredEvent);\n",
+                    "        }}\n",
+                    args!(i)
+                );
             }
         }
 
@@ -657,6 +690,7 @@ struct Patterns {
     platforms: Vec<PlatformPatterns>,
     object: String,
     events: BTreeMap<String, Event>,
+    tests_only_ignored: Option<Vec<String>>,
 }
 
 #[derive(serde::Deserialize)]

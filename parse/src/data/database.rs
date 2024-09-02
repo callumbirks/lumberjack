@@ -4,9 +4,7 @@ use crate::{Error, Result};
 
 const MIGRATIONS: &str = include_str!("./schema.sql");
 
-pub fn open_db(path: impl AsRef<Path>, reset: bool) -> Result<rusqlite::Connection> {
-    let path = path.as_ref();
-
+pub fn open_db(path: &Path, reset: bool) -> Result<rusqlite::Connection> {
     if reset && path.exists() {
         std::fs::remove_file(path)
             .map_err(|err| Error::CannotParse(format!("Failed to remove database: {}", err)))?;

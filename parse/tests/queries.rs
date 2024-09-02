@@ -17,9 +17,12 @@ where
         env_logger::builder().init();
     });
 
-    let temp_dir = std::env::temp_dir().join(format!("lumberjack_test_queries_{}/", epoch_id()));
+    let temp_dir = std::env::temp_dir()
+        .join("lumberjack_test_queries/")
+        .join(format!("{}/", epoch_id()));
+
     std::fs::remove_dir_all(&temp_dir).ok();
-    std::fs::create_dir(&temp_dir).ok();
+    std::fs::create_dir_all(&temp_dir).ok();
     let logs_path = temp_dir.join("test.cbllog");
 
     std::fs::write(&logs_path, data).unwrap();

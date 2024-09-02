@@ -24,6 +24,7 @@ pub struct Parser {
 pub struct ParserOutput {
     pub file: File,
     pub lines: Vec<Line>,
+    pub error_count: u64,
 }
 
 #[derive(Default, Clone, Copy)]
@@ -229,17 +230,20 @@ impl Parser {
             }
         }
 
+        let error_count = (line_count - ok_results.len() - ignored_err_count) as u64;
+
         log::debug!(
             "Parsed {} lines from '{}' ({} CBL lines skipped due to error, {} insignificant lines ignored)",
             ok_results.len(),
             &file.path,
-            line_count - ok_results.len() - ignored_err_count,
+            error_count,
             ignored_err_count,
         );
 
         Ok(ParserOutput {
             file,
             lines: ok_results,
+            error_count,
         })
     }
 

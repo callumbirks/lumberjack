@@ -207,13 +207,13 @@ events:
     captures:
       correlation_id: OptionalString # Correlation ID
   repl_closed:
-    regex: "Repl#\\d+/( CorrID=(?<correlation_id>\\S+))? Connection closed with (?<reason>.*): \"(?<message>.*)\" \\(state=(?<from_state>\\d+)->(?<to_state>(-)?\\d+)\\)"
+    regex: "Repl#\\d+/( CorrID=(?<correlation_id>\\S+))? Connection closed with (?<reason>.*): \"(?<message>.*)(\" \\(state=(?<from_state>\\d+)->(?<to_state>(-)?\\d+)\\))?"
     captures:
       correlation_id: OptionalString # Correlation ID
       reason: String # Reason for closure
       message: String # Close message
-      from_state: Int # From state (integer enum == Connection::State)
-      to_state: Int # To state (integer enum == Connection::State)
+      from_state: OptionalInt # From state (integer enum == Connection::State)
+      to_state: OptionalInt # To state (integer enum == Connection::State)
   repl_oneshot_complete:
     regex: "Repl#\\d+/( CorrID=(?<correlation_id>\\S+))? Replication complete! Closing connection"
     captures:
@@ -533,7 +533,7 @@ events:
       num_changes: Int # Number of changes
       sequence: String # Sequence number
   revfinder_received_proposed:
-    regex: "/RevFinder#\\d+/ Coll=(?<collection_id>\\d+) Received (?<num_changes>\\d+) changes$"
+    regex: "/RevFinder#\\d+/ Coll=(?<collection_id>\\d+) Received (?<num_changes>\\d+) changes\\s+$"
     captures:
       collection_id: Int # Collection ID
       num_changes: Int # Number of changes
@@ -783,11 +783,17 @@ events:
     captures:
       table_name: String # Table name
       expression: String # UNNEST expression (JSON query)
-  tls_error:
+  mbedtls_error:
     regex: "TLS ERROR mbedTLS\\((?<side>C|S)\\): (?<error>.*)"
     captures:
       side: Char # Client or server (C or S)
       error: String # Error message
+  tls_error:
+    regex: "TLS ERROR (?<error>.*) \\((?<func>\\S+) returned (?<code>-?\\d+)\\)"
+    captures:
+      error: String # Error message
+      func: String # Function name
+      code: Int # Error code
   ws_unwritable:
     regex: "writeToWebSocket cannot start, unwritable!"
   ws_error:
@@ -832,6 +838,45 @@ events:
     regex: "Couldn't parse Set-Cookie header:\\s?(?<header>.*)"
     captures:
       header: String # Set-Cookie header which failed to parse
+  rest_server_stopping:
+    regex: "Listener Info Stopping server"
+  rest_server_listening:
+    regex: "Listener Info Server listening on port (?<port>\\d+)"
+    captures:
+      port: Int # Port number
+  rest_repl_handler_registered:
+    regex: "Replication handler registered, at (?<path>\\S+)"
+    captures:
+      path: String # Path to handler
+  rest_server_config:
+    regex: "Listener Info Listener config: (?<config>.*)"
+    captures:
+      config: String # Listener configuration (JSON)
+  rest_auth_failed:
+    regex: "Listener Info Authentication failed"
+  rest_request:
+    regex: "Listener Info (?<request>(GET|UPGRADE|POST|PUT|DELETE)) (?<path>.*)"
+    captures:
+      request: String # Request type (GET, UPGRADE)
+      path: String # Path to upgrade
+  rest_matched_rule:
+    regex: "Matched rule (?<rule>.*) for path (?<path>.*)"
+    captures:
+      rule: String # Matched rule
+      path: String # Path
+  rest_no_matching_rule:
+    regex: "Listener Info No rule matched path (?<path>.*)"
+    captures:
+      path: String # Path
+  rest_error:
+    regex: "Default WARNING Error: (?<error>.*)( after (?<num_timeouts>\\d+) timeouts)?"
+    captures:
+      error: String # Error message
+      num_timeouts: !DefaultedInt 0 # Number of timeouts
+  rest_socket_error:
+    regex: "Socket error sending response: (?<error>.*)"
+    captures:
+      error: String # Error message
   sqlite_error:
     regex: "SQLite error \\(code (?<code>\\d+)\\): (?<error>.*)"
     captures:
@@ -841,6 +886,11 @@ events:
     regex: "SQLite message: (?<error>.*)"
     captures:
       error: String # Error message
+  actor_exception:
+    regex: "Caught exception in Actor (?<name>\\S+): (?<error>.*)"
+    captures:
+      name: String # Actor name
+      error: String # Error message
   sql_error_duplicate:
     regex: "\\d+ SQL ERROR .*"
     ignore: true
@@ -849,12 +899,107 @@ events:
     ignore: true
   mbedtls_seed_rng:
     regex: "Seeding the mbedTLS random number generator\\.\\.\\."
-  litecore_test_identifier:
-    regex: "This is LiteCore .* short version .*"
-    ignore: true
   instantiation:
     regex: "(/|\\{).*(/|\\})==> litecore::.* @0x[0-9a-f]+"
     ignore: true
   dotnet_platform_log:
     regex: "\\[\\d+:\\d+\\] \\w+\\) \\w+ \\(\\w+\\)"
     ignore: true
+# Logs that are ignored, but only in a debug or test environment.
+tests_only_ignored:
+  - "This is LiteCore .* short version .*"
+  - "Default Info NOTE: Expecting an exception to be thrown"
+  - ">> Replicator is busy, progress"
+  - ">> Replicator is idle, progress"
+  - ">> Replicator closed with"
+  - ">> Replicator is stopped, progress"
+  - ">> Replicator error pulling '"
+  - ">> Replicator pull conflict for '"
+  - ">>\\s+Stopping idle replicator\\.\\.\\."
+  - ">>\\s+Will stop replicator when idle\\.\\.\\."
+  - ">> Replicator (transient )?error (pushing|pulling) '"
+  - ">> Comparing databases\\.\\.\\."
+  - ">> Replicator (pushed|pulled) '"
+  - ">> Replicator (pushing|pulling) blob '"
+  - ">>> Replication complete"
+  - "Info Creating \\d+ docs, with \\d+ blobs each \\.\\.\\."
+  - "Info Resolving conflict (for|in) '"
+  - "Default Info Committing\\.\\.\\.$"
+  - "Default Info Reading C/tests/data/"
+  - "Info Client replicator is Repl#\\d+"
+  - "Default Info \\.\\.\\. caught exception"
+  - "Info -+ Creating \\d+ docs -+"
+  - "Info -+ Done creating docs -+"
+  - "Info ----+ db.* rev.* ----+"
+  - "Info -{8}(\\s\\S+)+ -{8}$"
+  - "Info ---- Releasing C4Replicator"
+  - "Info \\*\\*\\* Replicator idle; stopping\\.\\.\\."
+  - "Info Waiting for replication to complete\\.\\.\\."
+  - "Default Info -{4} .* -{3}$"
+  - "Info --- Erasing \\w+, now pushing"
+  - "Info Moving source DB to destination DB"
+  - "Info Copying prebuilt database from "
+  - "Default Info Options = \\{\\{"
+  - "Info Now sending body\\.\\.\\."
+  - "Info\\s{4} Connection: \\w+"
+  - "Info\\s{4} Content-Length: \\d+"
+  - "Info\\s{4} Date: "
+  - "Info\\s{4} Sec-WebSocket-Accept: "
+  - "Info\\s{4} Sec-WebSocket-Protocol: "
+  - "Info\\s{4} Upgrade: websocket"
+  - "Info Content-Length: \\d+"
+  - "Info Response status: \\d+"
+  - "Info\\s+>>> Starting server at"
+  - "Info\\s+<<< Stopping server"
+  - "Info Generating (temporary|persistent) TLS key-pair and cert\\.\\.\\."
+  - "\\*\\*\\* Server command:"
+  - "Info Using (temporary|persistent) (client|server) TLS cert"
+  - "Info Using server TLS w/persistent key for this test"
+  - "Info Database URL = <"
+  - "Info Listener URL = <"
+  - "Info Status: -?\\d+"
+  - "Info Body: "
+  - "Default Info --+ (GET|PUT|POST|DELETE|UPGRADE) /.*"
+  - "Default Info ---- Using collection '"
+  - "Default Info \\{\"db_name"
+  - "Default Info System selected port \\d+"
+  - "Default Info Checking URL <"
+  - "Default Info Will listen on address"
+  - "Default Info Here are all the IP interfaces and their addresses:"
+  - "Info \\s+- (en|lo|wlan|eth|vmnet|vboxnet|vnic)"
+  - "Info  \\s+- \\d+\\.\\d+\\.\\d+\\.\\d+$"
+  - "Info  \\s+- [0-9a-f:]+$"
+  - "Info Interface names = "
+  - "Info IP addresses ="
+  - "Info Primary addrs ="
+  - "Info Hostname ="
+  - "Info delta = '"
+  - "Info Upgrader finished"
+  - "Info Importing doc '"
+  - "Info   \\s+\\.\\.\\.(rev|attachment)"
+  - "Info SCHEMA UPGRADE:"
+  - "Info Upgrader upgrading db <"
+  - "Info ---- Upgrading to "
+  - "Info Query:$"
+  - "Info Index has \\d+ rows"
+  - "Info Index contents: "
+  - "Info Explanation: SELECT"
+  - "Info 8-ball: "
+  - "Info SELECT "
+  - "Info SharedKeys = "
+  - "Info Will listen on interface"
+  - "Info rec-\\d+ :"
+  - "Info Obj=/dummy#\\d+/ This is line #\\d+"
+  - "Info \\{dummy#\\d+\\}==> LogObject"
+  - "Info Obj=/dummy#\\d+/ This will be in plaintext"
+  - "Info Checking '.*'\\.\\.\\.$"
+  - "Info File size went from \\d+"
+  - "Info \\s+ ---- Using KeyStore '"
+  - "Info \\s+ ---- includeDeleted ="
+  - "Info GETTING READY\\.\\.\\.$"
+  - "Info LET THE HATE FLOW THROUGH YOU\\.\\.\\.$"
+  - "Info DOOT!$"
+  - "Info I'LL DO IT LATER\\.\\.\\.$"
+  - "Info Beginning binary logging to "
+  - "Info (Non)?VirtCounty instance at"
+  - "Info Got backtrace: "

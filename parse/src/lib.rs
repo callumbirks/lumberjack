@@ -13,7 +13,8 @@ use std::path::Path;
 pub use crate::parser::Options;
 
 /// Parse logs from the given `in_path` into a SQLite database at the given `out_path`.
-pub fn parse(in_path: &Path, out_path: &Path, options: Options) -> Result<()> {
+/// Return the number of lines which failed to parse.
+pub fn parse(in_path: &Path, out_path: &Path, options: Options) -> Result<u64> {
     log::info!("Parsing logs at {:?}", in_path);
 
     let mut conn = open_db(out_path, true)?;
@@ -29,7 +30,10 @@ pub fn parse(in_path: &Path, out_path: &Path, options: Options) -> Result<()> {
         tx.commit()?;
     }
 
+    let mut error_count = 0_u64;
+
     for result in parser.parse() {
+        error_count += result.error_count;
         total_files += 1;
         total_lines += result.lines.len() as u64;
         let mut tx = conn.transaction()?;
@@ -46,5 +50,5 @@ pub fn parse(in_path: &Path, out_path: &Path, options: Options) -> Result<()> {
 
     log::info!("Wrote parsed data to {:?}", out_path);
 
-    Ok(())
+    Ok(error_count)
 }
