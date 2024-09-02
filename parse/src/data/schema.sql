@@ -9,7 +9,7 @@ CREATE TABLE lines(
     -- The EventType (an enum)
     event_type INTEGER   NOT NULL,
     -- Extra data for the event. The JSON schema is defined by the event_type.
-    event_data TEXT,
+    event_data JSON,
     -- The object path, if any, i.e. /Repl#76/Pusher#123/ for Pusher#123 which belongs to Repl#76
     object_path TEXT             ,
     -- Composite primary key, level and line_num are always unique. In the case of rollover, the line_num in the
@@ -25,8 +25,6 @@ CREATE TABLE files(
     -- `id` is unrelated to CBL, it's just a sequential ID.
     id        INTEGER   PRIMARY KEY NOT NULL,
     path      TEXT      NOT NULL,
-    -- Log level
-    level     INTEGER,
     timestamp TIMESTAMP NOT NULL
 );
 

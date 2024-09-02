@@ -8,21 +8,14 @@ repository.workspace = true
 
 [dependencies]
 chrono = { workspace = true, features = ["serde"] }
-diesel = { workspace = true, features = [
-    "sqlite",
-    "chrono",
-    "serde_json",
-    "returning_clauses_for_sqlite_3_35",
-] }
-diesel_migrations.workspace = true
 enum-iterator.workspace = true
 futures.workspace = true
 lazy_static.workspace = true
-libsqlite3-sys.workspace = true
 log.workspace = true
 rangemap.workspace = true
 rayon.workspace = true
 regex.workspace = true
+rusqlite.workspace = true
 semver.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_yaml.workspace = true
@@ -30,11 +23,11 @@ serde_json.workspace = true
 thiserror.workspace = true
 
 [build-dependencies]
-serde.workspace = true
+serde = { workspace = true, features = ["derive"] }
 serde_yaml.workspace = true
 semver.workspace = true
 regex.workspace = true
 
 [dev-dependencies]
 env_logger.workspace = true
-rusqlite = { version = "^0.31", features = ["bundled", "chrono"] }
+rusqlite = { workspace = true, features = ["bundled", "array", "chrono"] }

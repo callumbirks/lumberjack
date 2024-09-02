@@ -1,12 +1,12 @@
 use std::path::Path;
 
-use diesel::{QueryDsl, RunQueryDsl, SelectableHelper, SqliteConnection};
+use lumberjack_parse::data::FromRow;
 use rust_xlsxwriter::{Format, Workbook};
 use serde::Serialize;
 
 mod types;
 
-pub fn write(path: impl AsRef<Path>, mut db: SqliteConnection) -> crate::Result<()> {
+pub fn write(path: impl AsRef<Path>, db: rusqlite::Connection) -> crate::Result<()> {
     log::info!("Writing DB to XLSX file...");
 
     let mut writer = {
@@ -20,16 +20,25 @@ pub fn write(path: impl AsRef<Path>, mut db: SqliteConnection) -> crate::Result<
         }
     };
 
-    let lines = lumberjack_parse::schema::lines::table
-        .select(lumberjack_parse::data::Line::as_select())
-        .load(&mut db)?;
-    let lines: Vec<types::Line> = lines.into_iter().map(types::Line::from).collect();
+    // Convert it to a custom Line type that has more sensible serialization for XLSX
+    let lines: Vec<types::Line> = db
+        .prepare("SELECT * FROM lines")
+        .unwrap()
+        .query_map([], lumberjack_parse::data::Line::from_row)?
+        .filter_map(Result::ok)
+        .map(types::Line::from)
+        .collect();
+
     writer.write_worksheet_serializable("Lines", &lines)?;
 
-    let files = lumberjack_parse::schema::files::table
-        .select(lumberjack_parse::data::File::as_select())
-        .load(&mut db)?;
-    let files: Vec<types::File> = files.into_iter().map(types::File::from).collect();
+    let files: Vec<types::File> = db
+        .prepare("SELECT * FROM files")
+        .unwrap()
+        .query_map([], lumberjack_parse::data::File::from_row)?
+        .filter_map(Result::ok)
+        .map(types::File::from)
+        .collect();
+
     writer.write_worksheet_serializable("Files", &files)?;
 
     let path_str = path.as_ref().to_string_lossy();

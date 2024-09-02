@@ -14,15 +14,15 @@ xlsx = ["dep:rust_xlsxwriter"]
 [dependencies]
 lumberjack_parse = { workspace = true }
 
+chrono = { workspace = true, features = ["serde"] }
 clap = { workspace = true, features = ["derive"] }
-diesel = { workspace = true }
 env_logger = { workspace = true }
-libsqlite3-sys = { workspace = true }
 log = { workspace = true }
 rust_xlsxwriter = { workspace = true, optional = true, features = [
     "chrono",
     "serde",
 ] }
+rusqlite.workspace = true
 serde = { workspace = true }
 thiserror = { workspace = true }
 
@@ -42,19 +42,17 @@ lumberjack_parse = { version = "0.3.0", path = "parse" }
 
 chrono = "0.4"
 clap = "4.5.4"
-diesel = "^2.2"
-diesel_migrations = "^2.2"
 env_logger = "0.11"
 enum-iterator = "2.1"
 futures = "0.3"
 grep = "0.3"
 lazy_static = "1.4"
-libsqlite3-sys = { version = "^0.28.0", features = ["bundled"] }
 log = "0.4"
 rangemap = "1.5"
 rayon = "1.10.0"
 regex = "1.10"
 rust_xlsxwriter = "0.69.0"
+rusqlite = { version = "^0.32", features = ["bundled", "chrono"] }
 semver = "1.0"
 serde = "1.0"
 serde_json = "1.0"

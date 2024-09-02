@@ -4,10 +4,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("DB Connection Error {0}")]
-    DbConn(#[from] diesel::ConnectionError),
-    #[error("Diesel Error {0}")]
-    Diesel(#[from] diesel::result::Error),
+    #[error("SQLite Error {0}")]
+    Sqlite(#[from] rusqlite::Error),
     #[error("IO Error {0}")]
     Io(#[from] std::io::Error),
     #[error("Regex Error {0}")]
@@ -28,31 +26,23 @@ pub enum Error {
     UnsupportedVersion(Version),
     #[error("Unsupported Platform with identifying line '{0}'")]
     UnsupportedPlatform(String),
-    #[error("Invalid Filename \"{0}\"")]
-    InvalidFilename(String),
     #[error("No such log level '{0}'")]
     NoSuchLevel(String),
-    #[error("No matches")]
-    NoMatches,
-    #[error("No event in line")]
-    NoEvent,
+    #[error("Unknown event in line")]
+    UnknownEvent,
     #[error("Not parsing ignored event")]
     IgnoredEvent,
-    #[error("No parseable timestamp in line \"{0}\"")]
-    NoTimestamp(String),
-    #[error("Unknown object '{0}'")]
-    UnknownObject(String),
+    #[error("No parseable timestamp in line")]
+    NoTimestamp,
     #[error("No domain in line")]
     NoDomain,
     #[error("No object in line")]
     NoObject,
-    #[error("No such value {0} in enum {1}")]
-    InvalidEnumValue(i32, &'static str),
     #[error("Invalid binary logs: '{0}' at {1}")]
     InvalidBinaryLogs(String, u64),
     #[error("Invalid varint in binary logs")]
     InvalidVarint,
-    #[error("No Level in line")]
+    #[error("No log level in line")]
     NoLevel,
     #[error("Cannot parse: {0}")]
     CannotParse(String),

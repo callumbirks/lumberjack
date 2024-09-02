@@ -79,7 +79,7 @@ fn create_regex_patterns(out_path: &Path, formats: &BTreeMap<Compatibility, Patt
         "            }\n",
         "        }\n",
         "    }\n",
-        "    Err(Error::NoMatches)\n",
+        "    Err(Error::NotLogs(path.to_path_buf()))\n",
         "}\n\n"
     );
 
@@ -348,10 +348,9 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
 
     write_out!(
         out_file_writer,
-        "use crate::data::util::{diesel_tosql_transmute, impl_display_debug};\n",
+        "use crate::data::util::impl_display_debug;\n",
         "use crate::{Result, Error};\n",
         "use crate::parser::regex_patterns::Patterns;\n",
-        "use diesel::{sql_types, AsExpression, FromSqlRow};\n",
         "use semver::Version;\n\n",
     );
 
@@ -389,7 +388,7 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
 
     write_out!(
         out_file_writer,
-        "#[derive(serde::Serialize, PartialEq, Eq, Debug, Clone)]\n",
+        "#[derive(PartialEq, Eq, Debug, Clone)]\n",
         "pub struct Event {\n",
         "    pub event_type: EventType,\n",
         "    /// Optional JSON data. The schema is defined by the event type\n",
@@ -399,9 +398,8 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
 
     write_out!(
         out_file_writer,
-        "#[derive(AsExpression, FromSqlRow, serde::Serialize, Debug, Copy, Clone, Eq, PartialEq, Hash, enum_iterator::Sequence)]\n",
-        "#[repr(i32)]\n",
-        "#[diesel(sql_type = sql_types::Integer)]\n",
+        "#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, serde::Serialize, enum_iterator::Sequence)]\n",
+        "#[repr(u32)]\n",
         "pub enum EventType {\n"
     );
 
@@ -417,11 +415,7 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
 
     write_out!(out_file_writer, "}\n\n");
 
-    write_out!(
-        out_file_writer,
-        "diesel_tosql_transmute!(EventType, i32, sql_types::Integer);\n",
-        "impl_display_debug!(EventType);\n\n"
-    );
+    write_out!(out_file_writer, "impl_display_debug!(EventType);\n\n");
 
     write_out!(
         out_file_writer,
@@ -618,7 +612,7 @@ fn create_events(out_path: &Path, formats: &BTreeMap<Compatibility, Patterns>) {
 
         write_out!(
             out_file_writer,
-            "        Err(Error::NoEvent)\n",
+            "        Err(Error::UnknownEvent)\n",
             "    }\n",
             "}\n"
         );

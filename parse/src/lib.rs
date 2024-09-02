@@ -2,17 +2,12 @@ pub mod data;
 pub(crate) mod decoder;
 mod error;
 mod parser;
-#[rustfmt::skip]
-pub mod schema;
 pub mod util;
 
 use crate::data::open_db;
-use crate::data::EventType;
+use crate::data::{EventType, Insertable};
 use crate::parser::Parser;
-use diesel::prelude::*;
-use diesel::{Connection, RunQueryDsl};
 pub use error::{Error, Result};
-use serde::Serialize;
 use std::path::Path;
 
 pub use crate::parser::Options;
@@ -28,25 +23,19 @@ pub fn parse(in_path: &Path, out_path: &Path, options: Options) -> Result<()> {
     let mut total_files = 0_u64;
     let mut total_lines = 0_u64;
 
-    let event_types = enum_iterator::all::<EventType>()
-        .map(InsertableEventType::from)
-        .collect::<Vec<_>>();
-
-    diesel::insert_into(schema::event_types::table)
-        .values(event_types)
-        .execute(&mut conn)?;
+    {
+        let mut tx = conn.transaction()?;
+        enum_iterator::all::<EventType>().db_insert(&mut tx)?;
+        tx.commit()?;
+    }
 
     for result in parser.parse() {
         total_files += 1;
         total_lines += result.lines.len() as u64;
-        conn.transaction(|tx| {
-            diesel::insert_or_ignore_into(schema::files::table)
-                .values(result.file)
-                .execute(tx)?;
-            diesel::insert_into(schema::lines::table)
-                .values(result.lines)
-                .execute(tx)
-        })?;
+        let mut tx = conn.transaction()?;
+        result.file.db_insert(&mut tx)?;
+        result.lines.into_iter().db_insert(&mut tx)?;
+        tx.commit()?;
     }
 
     log::info!(
@@ -58,21 +47,4 @@ pub fn parse(in_path: &Path, out_path: &Path, options: Options) -> Result<()> {
     log::info!("Wrote parsed data to {:?}", out_path);
 
     Ok(())
-}
-
-#[derive(Insertable, Serialize, Identifiable, Debug, Clone)]
-#[diesel(table_name = schema::event_types)]
-#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
-struct InsertableEventType {
-    pub id: i32,
-    pub name: String,
-}
-
-impl From<EventType> for InsertableEventType {
-    fn from(value: EventType) -> Self {
-        Self {
-            id: unsafe { std::mem::transmute::<EventType, i32>(value) },
-            name: value.to_string(),
-        }
-    }
 }

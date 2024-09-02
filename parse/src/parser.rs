@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    ffi::OsStr,
     path::{Path, PathBuf},
 };
 
@@ -30,6 +29,7 @@ pub struct ParserOutput {
 #[derive(Default, Clone, Copy)]
 pub struct Options {
     /// Reduce and coalesce similar log lines in trace output. Useful when dealing with a large number of parsing errors.
+    /// Ignored in release builds.
     pub reduce_lines: bool,
 }
 
@@ -59,33 +59,42 @@ impl Parser {
     fn parse_file(&self, index: usize) -> Result<ParserOutput> {
         let path = self.files[index].as_path();
         let lines = read_lines(path)?;
-        let Some(file_name) = path.file_stem().and_then(OsStr::to_str) else {
-            return Err(Error::InvalidFilename(path.to_string_lossy().to_string()));
-        };
+        let file_name = path
+            .file_stem()
+            .expect("Path is not a file!")
+            .to_str()
+            .expect("Path contains invalid Unicode!");
 
-        let level = level_from_filename(file_name, &self.patterns.platform.level_names);
         let timestamp = timestamp_from_filename(file_name);
 
-        if level.is_none() && self.patterns.platform.level.is_none() {
-            return Err(Error::CannotParse(
-                "File has no log level and the log format specifies no level regex!".to_string(),
-            ));
-        }
-
         let timestamp = if let Some(timestamp) = timestamp {
+            // Timestamp from filename
             Ok(timestamp)
         } else if self.patterns.platform.full_timestamp {
-            match parse_timestamp(
-                &lines[0],
-                &self.patterns.platform.timestamp,
-                self.patterns.platform.full_timestamp,
-                &self.patterns.platform.timestamp_formats,
-            ) {
-                Ok(Timestamp::Full(ts)) => Ok(ts),
-                Ok(Timestamp::Partial(_)) => unreachable!(),
-                Err(err) => Err(err),
+            // Timestamp from first valid full timestamp in log file
+            let mut i = 0_usize;
+            loop {
+                match parse_timestamp(
+                    &lines[i],
+                    &self.patterns.platform.timestamp,
+                    self.patterns.platform.full_timestamp,
+                    &self.patterns.platform.timestamp_formats,
+                ) {
+                    Ok(Timestamp::Full(ts)) => break Ok(ts),
+                    Ok(Timestamp::Partial(_)) => unreachable!(),
+                    Err(_) => {
+                        i += 1;
+                        if i >= lines.len() {
+                            return Err(Error::CannotParse(format!(
+                                "Could not find a full timestamp in file {:?}!",
+                                path
+                            )));
+                        }
+                    }
+                }
             }
         } else {
+            // Timestamp from file creation time
             let meta = std::fs::metadata(path)?;
             let created_seconds = meta
                 .created()?
@@ -105,9 +114,8 @@ impl Parser {
         let line_count = lines.len();
 
         let file = File {
-            id: index as i32,
+            id: index as u32,
             path: path.to_string_lossy().to_string(),
-            level,
             timestamp,
         };
 
@@ -258,21 +266,17 @@ impl Parser {
             Timestamp::Full(ts) => ts,
         };
 
-        let level = if let Some(level) = file.level {
-            level
-        } else {
-            parse_level(
-                line,
-                self.patterns.platform.level.as_ref().unwrap(),
-                &self.patterns.platform.level_names,
-            )?
-        };
+        let level = parse_level(
+            line,
+            self.patterns.platform.level.as_ref().unwrap(),
+            &self.patterns.platform.level_names,
+        )?;
 
         let event = parse_event(line, &self.version, &self.patterns)?;
 
         let line = Line {
             file_id: file.id,
-            line_num: line_num as i32,
+            line_num: line_num as u32,
             level,
             timestamp,
             domain,
@@ -409,7 +413,7 @@ fn parse_timestamp(
     timestamp_formats: &[&str],
 ) -> Result<Timestamp> {
     let Some(caps) = timestamp_regex.captures(line) else {
-        return Err(Error::NoTimestamp(line.to_string()));
+        return Err(Error::NoTimestamp);
     };
 
     let Some(ts_match) = caps.name("ts") else {
@@ -427,7 +431,7 @@ fn parse_timestamp(
             return Ok(Timestamp::Partial(ts));
         }
     }
-    Err(Error::NoTimestamp(line.to_string()))
+    Err(Error::NoTimestamp)
 }
 
 lazy_static! {
@@ -504,11 +508,6 @@ fn reduce_line(line: &str, patterns: &Patterns) -> String {
             acc.push(' ');
             acc
         })
-}
-
-fn level_from_filename(file_name: &str, level_names: &LevelNames) -> Option<Level> {
-    let level_str = file_name.split('_').nth(1)?;
-    Level::from_str(level_str, level_names).ok()
 }
 
 fn timestamp_from_filename(file_name: &str) -> Option<NaiveDateTime> {

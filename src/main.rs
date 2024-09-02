@@ -2,7 +2,6 @@
 mod xlsx;
 
 use clap::Parser;
-use diesel::{Connection, SqliteConnection};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -29,20 +28,19 @@ struct Args {
     trace: bool,
     #[arg(long)]
     /// Reduce and coalesce similar log lines in trace output. Useful when dealing with a large number of parsing errors.
+    /// Ignored in release builds.
     reduce_lines: bool,
 }
 
 #[derive(Error, Debug)]
 enum Error {
+    #[error("SQLite Error {0}")]
+    SQLite(#[from] rusqlite::Error),
     #[error("Parse Error {0}")]
     Parse(#[from] lumberjack_parse::Error),
-    #[error("Diesel Error {0}")]
-    Diesel(#[from] diesel::result::Error),
     #[cfg(feature = "xlsx")]
     #[error("Xlsx Error {0}")]
     Xlsx(#[from] rust_xlsxwriter::XlsxError),
-    #[error("SQLite Connection Error {0}")]
-    SqliteConnection(#[from] diesel::ConnectionError),
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -81,7 +79,7 @@ fn main() -> Result<()> {
     if args.xlsx {
         let xlsx_filename = Path::new(&db_file_name).with_extension("xlsx");
         let xlsx_path = out_dir.join(xlsx_filename);
-        let conn = SqliteConnection::establish(db_path.to_str().unwrap())?;
+        let conn = rusqlite::Connection::open(&db_path)?;
         xlsx::write(xlsx_path, conn)?;
     }
 

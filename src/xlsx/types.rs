@@ -1,4 +1,4 @@
-use diesel::internal::derives::multiconnection::chrono::NaiveDateTime;
+use chrono::NaiveDateTime;
 use serde::{Serialize, Serializer};
 
 // Some helper types / functions for writing Lumberjack types to XLSX.
@@ -14,14 +14,15 @@ where
 
 #[derive(Serialize)]
 pub struct File {
-    id: i32,
+    id: u32,
     path: String,
+    timestamp: NaiveDateTime,
 }
 
 #[derive(Serialize)]
 pub struct Line {
-    file_id: i32,
-    line_num: i32,
+    file_id: u32,
+    line_num: u32,
     #[serde(serialize_with = "serialize_to_string")]
     level: lumberjack_parse::data::Level,
     timestamp: NaiveDateTime,
@@ -37,6 +38,7 @@ impl From<lumberjack_parse::data::File> for File {
         File {
             id: file.id,
             path: file.path,
+            timestamp: file.timestamp,
         }
     }
 }
