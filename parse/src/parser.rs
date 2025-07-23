@@ -535,5 +535,6 @@ pub(crate) fn read_lines(file_path: &Path) -> Result<Vec<String>> {
 }
 
 pub mod regex_patterns {
+    // An LSP error here can be ignored, the LSP doesn't have the necessary context.
     include!(concat!(env!("OUT_DIR"), "/regex_patterns.rs"));
 }

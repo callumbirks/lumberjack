@@ -20,3 +20,27 @@ Regex for formats, events, and data are defined by the YAML files found in `pars
 The parser itself will scan the input file(s) to extract version information, find and verify the
  correct "`Patterns`" for that version and CBL platform, then iterate over each input file, parsing
  each line in parallel to extract the necessary data.
+
+## Build
+
+1. Run `cargo build --release`
+2. The binary will be located in `target/release/cbl-lumberjack`
+
+Or, run directly using `cargo run --release`, you can then pass arguments using `--`, like: `cargo run --release -- --xlsx --input info.log`.
+
+## Usage
+
+Run `cbl-lumberjack --help` to see the available options.
+```
+Usage: cbl-lumberjack [OPTIONS] --input <INPUT>
+
+Options:
+  -i, --input <INPUT>    The input path of log file(s) to parse
+      --xlsx             If specified, output the parsed data to an xlsx file
+  -o, --output <OUTPUT>  The output path for the parsed data. A directory or a file name. If a directory is specified, the file name will be chosen by the program. If no output parameter is specified, the files will be output to the current directory
+  -v, --verbose          Enable verbose logging
+      --trace            Enable trace logging
+      --reduce-lines     Reduce and coalesce similar log lines in trace output. Useful when dealing with a large number of parsing errors. Ignored in release builds
+  -h, --help             Print help
+  -V, --version          Print version
+```
